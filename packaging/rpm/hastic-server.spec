@@ -3,6 +3,7 @@
 %define release 0
 %define buildroot /root/rpmbuild/BUILDROOT
 %define builddir /root/rpmbuild/BUILD
+%define targetdir /usr/bin/hastic-server
 
 Name: %{name}
 Version: %{version}
@@ -60,25 +61,29 @@ npm run build
 popd
 
 %install
-mkdir -p %{buildroot}/usr/lib/hastic-server/server/dist
-mkdir -p %{buildroot}/usr/lib/hastic-server/.git/refs/heads
-mkdir -p %{buildroot}/usr/lib/hastic-server/analytics/dist/server
-cp -r server/dist %{buildroot}/usr/lib/hastic-server/server/
-cp -r .git/HEAD %{buildroot}/usr/lib/hastic-server/.git
-cp -r .git/refs/heads %{buildroot}/usr/lib/hastic-server/.git/refs
-cp -r analytics/dist/server %{buildroot}/usr/lib/hastic-server/analytics/dist/
+mkdir -p %{buildroot}/%{targetdir}/server/dist
+mkdir -p %{buildroot}/%{targetdir}/.git/refs/heads
+mkdir -p %{buildroot}/%{targetdir}/analytics/dist/server
+cp -r server/dist %{buildroot}/%{targetdir}/server/
+cp -r .git/HEAD %{buildroot}/%{targetdir}/.git
+cp -r .git/refs/heads %{buildroot}/%{targetdir}/.git/refs
+cp -r analytics/dist/server %{buildroot}/%{targetdir}/analytics/dist/
 
 %post
 mkdir -p /etc/hastic-server/
 if [ ! -f /etc/hastic-server/config.json ]; then
   echo '{}' > /etc/hastic-server/config.json
 fi
-ln -s /etc/hastic-server/config.json /usr/lib/hastic-server/config.json
+if [ ! -f %{targetdir}/config.json ]; then
+  ln -s /etc/hastic-server/config.json %{targetdir}/config.json
+fi
 
 mkdir -p /var/hastic-server/
-ln -s /usr/lib/hastic-server/data /var/hastic-server/data
+if [ ! -d %{targetdir}/data ]; then
+  ln -s %{targetdir}/data /var/hastic-server/data
+fi
 
-echo 'node /usr/lib/hastic-server/server/dist/server' > /usr/bin/hastic-server
+echo 'node %{targetdir}/server/dist/server' > /usr/bin/hastic-server
 chmod +x /usr/bin/hastic-server
 
 
