@@ -3,8 +3,17 @@
 import sys
 import os
 
-#TODO: make wrapper script that set PYTHONPATH instead
+# TODO: make a wrapper script that sets PYTHONPATH instead
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'analytics'))
+
+# TODO: create "system checks" module for this kind of checks
+# see https://docs.python.org/3.6/library/_dummy_thread.html#module-_dummy_thread for more info 
+try:
+    import _thread
+except ImportError:
+    print('Can`t start analytics process: real multithreading is necessary')
+    sys.exit(2)
+
 
 import config
 import json
