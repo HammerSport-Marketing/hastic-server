@@ -13,7 +13,7 @@ logger = logging.getLogger('SERVER_SERVICE')
 
 
 class ServerMessage:
-    def __init__(self, method: str, payload: object = None, request_id: int = None):
+    def __init__(self, method: str, payload: Optional[object] = None, request_id: Optional[int] = None):
         self.method = method
         self.payload = payload
         self.request_id = request_id
@@ -70,7 +70,7 @@ class ServerService:
                 else:
                     return message
 
-    async def send_message(self, message: ServerMessage):
+    async def send_message(self, message: ServerMessage) -> None:
         await self.socket.send_string(json.dumps(message.toJSON()))
 
     async def send_request(self, message: ServerMessage) -> object:
@@ -85,7 +85,7 @@ class ServerService:
         del self.responses[request_id]
         return response
 
-    async def __handle_ping(self):
+    async def __handle_ping(self) -> None:
         await self.socket.send(b'PONG')
 
     def __parse_message_or_save(self, text: str) -> Optional[ServerMessage]:
