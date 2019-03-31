@@ -15,7 +15,7 @@ import * as _ from 'lodash';
 export class AnalyticsService {
 
   private _alertService = new AlertService();
-  private _requester: any;
+  private _socket: any;
   private _ready: boolean = false;
   private _lastAlive: Date = null;
   private _pingResponded = false;
@@ -59,7 +59,7 @@ export class AnalyticsService {
 
   public async sendText(text: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      this._requester.send(text, undefined, (err: any) => {
+      this._socket.send(text, undefined, (err: any) => {
         if(err) {
           console.trace(`got error while sending ${err}`);
           reject(err);
@@ -78,7 +78,7 @@ export class AnalyticsService {
       console.log('Remove ipc path: ' + this._ipcPath);
       fs.unlinkSync(this._ipcPath);
     }
-    this._requester.close();
+    this._socket.close();
     console.log('Terminating successful');
   }
 
@@ -86,7 +86,7 @@ export class AnalyticsService {
   public get lastAlive(): Date { return this._lastAlive; }
 
   private async _init() {
-    this._requester = zmq.socket('pair');
+    this._socket = zmq.socket('pair');
 
     this._zmqConnectionString = config.ZMQ_CONNECTION_STRING;
 
@@ -95,8 +95,8 @@ export class AnalyticsService {
     }
 
     console.log("Binding to zmq... %s", this._zmqConnectionString);
-    this._requester.connect(this._zmqConnectionString);
-    this._requester.on("message", this._onAnalyticsMessage.bind(this));
+    this._socket.connect(this._zmqConnectionString);
+    this._socket.on("message", this._onAnalyticsMessage.bind(this));
     console.log('Binding successful');
 
     if(this._productionMode && !this._inDocker) {
