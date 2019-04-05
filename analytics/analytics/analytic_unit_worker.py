@@ -39,11 +39,6 @@ class AnalyticUnitWorker:
             raise Exception('Timeout ({}s) exceeded while learning'.format(config.LEARNING_TIMEOUT))
 
     async def do_detect(self, data: pd.DataFrame, cache: Optional[ModelCache]) -> dict:
-        if cache is None:
-            msg = f'{self.analytic_unit_id} detection got invalid cache, skip detection'
-            logger.error(msg)
-            raise ValueError(msg)
-        
         window_size = self._detector.get_window_size(cache)
 
         detection_result = {
@@ -64,11 +59,6 @@ class AnalyticUnitWorker:
             self._training_future.cancel()
 
     async def consume_data(self, data: pd.DataFrame, cache: Optional[ModelCache]):
-        if cache is None:
-            msg = f'{self.analytic_unit_id} consume_data got invalid cache, skip detection'
-            logger.error(msg)
-            raise ValueError(msg)
-
         window_size = self._detector.get_window_size(cache)
 
         #TODO: make class DetectionResult

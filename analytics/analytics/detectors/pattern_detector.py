@@ -57,6 +57,11 @@ class PatternDetector(Detector):
         logger.debug('Unit {} got {} data points for detection'.format(self.analytic_unit_id, len(dataframe)))
         # TODO: split and sleep (https://github.com/hastic/hastic-server/pull/124#discussion_r214085643)
 
+        if cache is None:
+            msg = f'{self.analytic_unit_id} detection got invalid cache, skip detection'
+            logger.error(msg)
+            raise ValueError(msg)
+
         detected = self.model.detect(dataframe, self.analytic_unit_id, cache)
 
         segments = [{ 'from': segment[0], 'to': segment[1] } for segment in detected['segments']]
@@ -71,15 +76,18 @@ class PatternDetector(Detector):
 
     def consume_data(self, data: pd.DataFrame, cache: Optional[ModelCache]) -> Optional[dict]:
         logging.debug('Start consume_data for analytic unit {}'.format(self.analytic_unit_id))
+
+        if cache is None:
+            msg = f'{self.analytic_unit_id} consume_data got invalid cache, skip detection'
+            logger.error(msg)
+            raise ValueError(msg)
+
         data_without_nan = data.dropna()
 
         if len(data_without_nan) == 0:
             return None
 
         self.bucket.receive_data(data_without_nan)
-        if cache == None:
-            logging.debug('consume_data cache is None for task {}'.format(self.analytic_unit_id))
-            cache = {}
         bucket_size = max(cache.get('WINDOW_SIZE', 0) * self.BUCKET_WINDOW_SIZE_FACTOR, self.MIN_BUCKET_SIZE)
 
         res = self.detect(self.bucket.data, cache)

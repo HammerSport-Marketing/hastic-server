@@ -27,9 +27,12 @@ class ThresholdDetector(Detector):
             }
         }
 
-    def detect(self, dataframe: pd.DataFrame, cache: ModelCache) -> dict:
-        if cache == None:
-            raise 'Threshold detector error: cannot detect before learning'
+    def detect(self, dataframe: pd.DataFrame, cache: Optional[ModelCache]) -> dict:
+        if cache is None:
+            msg = f'{self.analytic_unit_id} detection got invalid cache, skip detection'
+            logger.error(msg)
+            raise ValueError(msg)
+
         value = cache['value']
         condition = cache['condition']
 
@@ -71,6 +74,11 @@ class ThresholdDetector(Detector):
         }
 
     def consume_data(self, data: pd.DataFrame, cache: Optional[ModelCache]) -> Optional[dict]:
+        if cache is None:
+            msg = f'{self.analytic_unit_id} detection got invalid cache, skip detection'
+            logger.error(msg)
+            raise ValueError(msg)
+
         result = self.detect(data, cache)
         return result if result else None
 
