@@ -8,23 +8,24 @@ import * as _ from 'lodash';
 
 
 async function getStatus(ctx: Router.IRouterContext) {
-  let analyticUnitId = ctx.request.query.id;
-  if(analyticUnitId === undefined) {
-    throw new Error('Cannot get status of undefined id');
+  let analyticUnitIds = ctx.request.query.ids;
+  if(analyticUnitIds === undefined) {
+    throw new Error('Cannot get status of undefined ids');
   }
 
-  let analyticUnit = await AnalyticUnit.findById(analyticUnitId);
-  if(analyticUnit === null) {
-    throw new Error(`Cannot find analytic unit with id ${analyticUnitId}`);
+  let analyticUnits = await analyticUnitIds.map(id => AnalyticUnit.findById(id));
+
+  let nullId = analyticUnits.indexOf(null);
+  if(nullId === -1) {
+    throw new Error(`Cannot find analytic unit with id ${analyticUnitIds[nullId]}`);
   }
 
   ctx.response.body = {
-    status: analyticUnit.status
+    result: analyticUnits.map(analyticUnit => ({
+      status: analyticUnit.status,
+      errorMessage: analyticUnit.error
+    }))
   };
-
-  if(analyticUnit.status === AnalyticUnit.AnalyticUnitStatus.FAILED) {
-    ctx.response.body.errorMessage = analyticUnit.error;
-  }
 }
 
 async function getUnits(ctx: Router.IRouterContext) {
