@@ -9,14 +9,14 @@ import * as _ from 'lodash';
 
 async function getStatus(ctx: Router.IRouterContext) {
   let analyticUnitIds = ctx.request.query.ids;
-  if(analyticUnitIds === undefined) {
-    throw new Error('Cannot get status of undefined ids');
+  if(!AnalyticUnit.validateAnalyticUnitIds(analyticUnitIds)) {
+    throw new Error(`Cannot get status for array of ids ${analyticUnitIds}`);
   }
 
-  let analyticUnits = await analyticUnitIds.map(id => AnalyticUnit.findById(id));
+  let analyticUnits = await AnalyticUnit.findMany(analyticUnitIds);
 
   let nullId = analyticUnits.indexOf(null);
-  if(nullId === -1) {
+  if(nullId !== -1) {
     throw new Error(`Cannot find analytic unit with id ${analyticUnitIds[nullId]}`);
   }
 

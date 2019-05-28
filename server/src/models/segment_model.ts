@@ -3,6 +3,7 @@ import { AnalyticUnitId } from './analytic_units';
 import { Collection, makeDBQ } from '../services/data_service';
 
 import * as _ from 'lodash';
+import { isArray } from 'util';
 
 let db = makeDBQ(Collection.SEGMENTS);
 
@@ -76,8 +77,14 @@ export type FindManyQuery = {
   deleted?: boolean
 }
 
-export async function findMany(id: AnalyticUnitId, query: FindManyQuery): Promise<Segment[]> {
-  var dbQuery: any = { analyticUnitId: id };
+export async function findMany(ids: AnalyticUnitId | AnalyticUnitId[], query: FindManyQuery): Promise<Segment[]> {
+  let dbQuery: any;
+  if(isArray(ids)) {
+    dbQuery = { analyticUnitId: { $in: ids } };
+  } else {
+    dbQuery = { analyticUnitId: ids };
+  }
+
   if(query.timeFromGTE !== undefined) {
     dbQuery.from = { $gte: query.timeFromGTE };
   }

@@ -1,18 +1,18 @@
 import * as AnalyticsController from '../controllers/analytics_controller';
-import { AnalyticUnitId } from '../models/analytic_units';
+import { AnalyticUnitId, validateAnalyticUnitIds } from '../models/analytic_units';
 import { DetectionSpan } from '../models/detection_model';
 
 import * as Router from 'koa-router';
 
 
 declare type DetectionSpansResponse = {
-  spans: DetectionSpan[]
+  spans: any;
 }
 
 export async function getDetectionSpans(ctx: Router.IRouterContext) {
-  let id: AnalyticUnitId = ctx.request.query.id;
-  if(id === undefined || id === '') {
-    throw new Error('analyticUnitId (id) is missing');
+  let analyticUnitIds: AnalyticUnitId[] = ctx.request.query.ids;
+  if(!validateAnalyticUnitIds(analyticUnitIds)) {
+    throw new Error(`Cannot get spans for array of ids ${analyticUnitIds}`);
   }
 
   let from: number = +ctx.request.query.from;
@@ -24,9 +24,14 @@ export async function getDetectionSpans(ctx: Router.IRouterContext) {
     throw new Error(`to is missing or corrupted (got ${ctx.request.query.to})`);
   }
 
-  let response: DetectionSpansResponse = { spans: [] };
+  let response: DetectionSpansResponse = { spans: {} };
   // TODO: invalidate
-  response.spans = await AnalyticsController.getDetectionSpans(id, from, to);
+  Promise.all(analyticUnitIds.map(id => {
+    return async function() {
+      const spans = await AnalyticsController.getDetectionSpans(id, from, to);
+      response.spans[id] = spans;
+    }
+  }));
   ctx.response.body = response;
 }
 
