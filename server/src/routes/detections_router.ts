@@ -26,7 +26,7 @@ export async function getDetectionSpans(ctx: Router.IRouterContext) {
 
   let response: DetectionSpansResponse = { spans: {} };
   // TODO: invalidate
-  Promise.all(analyticUnitIds.map(id => {
+  await Promise.all(analyticUnitIds.map(id => {
     return async function() {
       const spans = await AnalyticsController.getDetectionSpans(id, from, to);
       response.spans[id] = spans;
