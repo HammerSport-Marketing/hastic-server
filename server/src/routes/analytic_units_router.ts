@@ -20,12 +20,21 @@ async function getStatus(ctx: Router.IRouterContext) {
     throw new Error(`Cannot find analytic unit with id ${analyticUnitIds[nullId]}`);
   }
 
-  ctx.response.body = {
-    result: analyticUnits.map(analyticUnit => ({
+  let result = { 
+    statuses: new Map<
+      AnalyticUnit.AnalyticUnitId, 
+      { status: string, errorMessage?: string }
+    >() 
+  };
+
+  analyticUnits.forEach(analyticUnit => 
+    result.statuses.set(analyticUnit.id, {
       status: analyticUnit.status,
       errorMessage: analyticUnit.error
-    }))
-  };
+    })
+  );
+
+  ctx.response.body = result;
 }
 
 async function getUnits(ctx: Router.IRouterContext) {

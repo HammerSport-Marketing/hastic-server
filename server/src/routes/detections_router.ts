@@ -5,10 +5,6 @@ import { DetectionSpan } from '../models/detection_model';
 import * as Router from 'koa-router';
 
 
-declare type DetectionSpansResponse = {
-  spans: any;
-}
-
 export async function getDetectionSpans(ctx: Router.IRouterContext) {
   let analyticUnitIds: AnalyticUnitId[] = ctx.request.query.ids;
   if(!validateAnalyticUnitIds(analyticUnitIds)) {
@@ -24,13 +20,11 @@ export async function getDetectionSpans(ctx: Router.IRouterContext) {
     throw new Error(`to is missing or corrupted (got ${ctx.request.query.to})`);
   }
 
-  let response: DetectionSpansResponse = { spans: {} };
+  let response = { spans: new Map<AnalyticUnitId, DetectionSpan[]>() };
   // TODO: invalidate
-  await Promise.all(analyticUnitIds.map(id => {
-    return async function() {
-      const spans = await AnalyticsController.getDetectionSpans(id, from, to);
-      response.spans[id] = spans;
-    }
+  await Promise.all(analyticUnitIds.map(async id => {
+    const spans = await AnalyticsController.getDetectionSpans(id, from, to);
+    response.spans.set(id, spans);
   }));
   ctx.response.body = response;
 }
