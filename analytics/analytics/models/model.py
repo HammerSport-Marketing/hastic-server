@@ -6,8 +6,9 @@ from typing import Optional, List, Tuple
 import pandas as pd
 import math
 import logging
-from analytic_types import AnalyticUnitId, ModelCache
+from analytic_types import AnalyticUnitId, ModelCache, TimeSeries
 from analytic_types.segment import Segment
+from analytic_types.learning_info import LearningInfo
 
 import utils.meta
 
@@ -67,16 +68,16 @@ class ModelState():
 
     def __init__(
         self,
-        pattern_center: List[int] = [],
-        pattern_model: List[float] = [],
+        pattern_center: List[int] = None,
+        pattern_model: List[float] = None,
         convolve_max: float = 0,
         convolve_min: float = 0,
         window_size: int = 0,
         conv_del_min: float = 0,
         conv_del_max: float = 0
     ):
-        self.pattern_center = pattern_center
-        self.pattern_model = pattern_model
+        self.pattern_center = pattern_center if pattern_center is not None else []
+        self.pattern_model = pattern_model if pattern_model is not None else []
         self.convolve_max = convolve_max
         self.convolve_min = convolve_min
         self.window_size = window_size
@@ -96,12 +97,12 @@ class Model(ABC):
         dataframe: pd.DataFrame,
         labeled_segments: List[AnalyticSegment],
         deleted_segments: List[AnalyticSegment],
-        learning_info: dict
+        learning_info: LearningInfo
     ) -> None:
         pass
 
     @abstractmethod
-    def do_detect(self, dataframe: pd.DataFrame) -> List[Tuple[int, int]]:
+    def do_detect(self, dataframe: pd.DataFrame) -> TimeSeries:
         pass
 
     @abstractmethod
@@ -146,7 +147,6 @@ class Model(ABC):
         if self.state.window_size == 0:
             self.state.window_size = math.ceil(max_length / 2) if max_length else 0
         model, model_type = self.get_model_type()
-        # TODO: learning_info: dict -> class
         learning_info = self.get_parameters_from_segments(dataframe, labeled, deleted, model, model_type)
         self.do_fit(dataframe, labeled, deleted, learning_info)
         logging.debug('fit complete successful with self.state: {} for analytic unit: {}'.format(self.state, id))
@@ -176,37 +176,29 @@ class Model(ABC):
 
     def get_parameters_from_segments(self, dataframe: pd.DataFrame, labeled: List[dict], deleted: List[dict], model: str, model_type: bool) -> dict:
         logging.debug('Start parsing segments')
-        learning_info = {
-            'confidence': [],
-            'patterns_list': [],
-            'pattern_width': [],
-            'pattern_height': [],
-            'pattern_timestamp': [],
-            'segment_center_list': [],
-            'patterns_value': [],
-        }
+        learning_info = LearningInfo()
         data = dataframe['value']
         for segment in labeled:
             confidence = utils.find_confidence(segment.data)[0]
-            learning_info['confidence'].append(confidence)
+            learning_info.confidence.append(confidence)
             segment_center = segment.center_index
-            learning_info['segment_center_list'].append(segment_center)
-            learning_info['pattern_timestamp'].append(segment.pattern_timestamp)
+            learning_info.segment_center_list.append(segment_center)
+            learning_info.pattern_timestamp.append(segment.pattern_timestamp)
             aligned_segment = utils.get_interval(data, segment_center, self.state.window_size)
             aligned_segment = utils.subtract_min_without_nan(aligned_segment)
             if len(aligned_segment) == 0:
                 logging.warning('cant add segment to learning because segment is empty where segments center is: {}, window_size: {}, and len_data: {}'.format(
                     segment_center, self.state.window_size, len(data)))
                 continue
-            learning_info['patterns_list'].append(aligned_segment)
+            learning_info.patterns_list.append(aligned_segment)
             if model == 'peak' or model == 'trough':
-                learning_info['pattern_height'].append(utils.find_confidence(aligned_segment)[1])
-                learning_info['patterns_value'].append(aligned_segment.values.max())
+                learning_info.pattern_height.append(utils.find_confidence(aligned_segment)[1])
+                learning_info.patterns_value.append(aligned_segment.values.max())
             if model == 'jump' or model == 'drop':
                 pattern_height, pattern_length = utils.find_parameters(segment.data, segment.from_index, model)
-                learning_info['pattern_height'].append(pattern_height)
-                learning_info['pattern_width'].append(pattern_length)
-                learning_info['patterns_value'].append(aligned_segment.values[self.state.window_size])
+                learning_info.pattern_height.append(pattern_height)
+                learning_info.pattern_width.append(pattern_length)
+                learning_info.patterns_value.append(aligned_segment.values[self.state.window_size])
         logging.debug('Parsing segments ended correctly with learning_info: {}'.format(learning_info))
         return learning_info
 

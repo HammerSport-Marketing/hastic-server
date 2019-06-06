@@ -32,19 +32,11 @@ def exponential_smoothing(series: pd.Series, alpha: float, last_smoothed_value: 
         result = [0]
     for n in range(1, len(series)):
         if np.isnan(series[n]):
-            series[n] = 0
-        result.append(alpha * series[n] + (1 - alpha) * result[n - 1])
+            result.append((1 - alpha) * result[n - 1])
+            series.values[n] = result[n]
+        else:
+            result.append(alpha * series[n] + (1 - alpha) * result[n - 1])
     return pd.Series(result, index = series.index)
-
-def segments_box(segments):
-    max_time = 0
-    min_time = float("inf")
-    for segment in segments:
-        min_time = min(min_time, segment['from'])
-        max_time = max(max_time, segment['to'])
-    min_time = pd.to_datetime(min_time, unit='ms')
-    max_time = pd.to_datetime(max_time, unit='ms')
-    return min_time, max_time
 
 def find_pattern(data: pd.Series, height: float, length: int, pattern_type: str) -> list:
     pattern_list = []
@@ -59,7 +51,10 @@ def find_pattern(data: pd.Series, height: float, length: int, pattern_type: str)
                     pattern_list.append(i)
     return pattern_list
 
-def find_jump(data, height, lenght):
+def find_jump(data, height: float, lenght: int) -> List[int]:
+    '''
+    Find jump indexes
+    '''
     j_list = []
     for i in range(len(data)-lenght-1):
         for x in range(1, lenght):
@@ -67,7 +62,10 @@ def find_jump(data, height, lenght):
                 j_list.append(i)
     return(j_list)
 
-def find_drop(data, height, length):
+def find_drop(data, height: float, length: int) -> List[int]:
+    '''
+    Find drop indexes
+    '''
     d_list = []
     for i in range(len(data)-length-1):
         for x in range(1, length):
@@ -75,7 +73,7 @@ def find_drop(data, height, length):
                 d_list.append(i)
     return(d_list)
 
-def timestamp_to_index(dataframe, timestamp):
+def timestamp_to_index(dataframe: pd.DataFrame, timestamp: int):
     data = dataframe['timestamp']
     idx, = np.where(data >= timestamp)
     if len(idx) > 0:
@@ -94,16 +92,16 @@ def find_peaks(data: Generator[float, None, None], size: int) -> Generator[float
         window.append(v)
         window.popleft()
 
-def ar_mean(numbers):
+def ar_mean(numbers: List[float]):
     return float(sum(numbers)) / max(len(numbers), 1)
 
-def get_av_model(patterns_list):
+def get_av_model(patterns_list: list):
     if not patterns_list:  return []
     patterns_list = get_same_length(patterns_list)
     value_list = list(map(list, zip(*patterns_list)))
     return list(map(ar_mean, value_list))
 
-def get_same_length(patterns_list):
+def get_same_length(patterns_list: list):
     for index in range(len(patterns_list)):
         if type(patterns_list[index]) == pd.Series:
             patterns_list[index] = patterns_list[index].tolist()
@@ -116,7 +114,7 @@ def get_same_length(patterns_list):
             pat.extend(added_values)
     return patterns_list
 
-def close_filtering(pattern_list: List[int], win_size: int) -> List[Tuple[int, int]]:
+def close_filtering(pattern_list: List[int], win_size: int) -> TimeSeries:
     if len(pattern_list) == 0:
         return []
     s = [[pattern_list[0]]]
@@ -152,7 +150,7 @@ def find_interval(dataframe: pd.DataFrame) -> int:
     delta = utils.convert_pd_timestamp_to_ms(dataframe.timestamp[1]) - utils.convert_pd_timestamp_to_ms(dataframe.timestamp[0])
     return delta
 
-def get_start_and_end_of_segments(segments: List[List[int]]) -> List[Tuple[int, int]]:
+def get_start_and_end_of_segments(segments: List[List[int]]) -> TimeSeries:
     '''
     find start and end of segment: [1, 2, 3, 4] -> [1, 4]
     if segment is 1 index - it will be doubled: [7] -> [7, 7]
@@ -167,7 +165,6 @@ def get_start_and_end_of_segments(segments: List[List[int]]) -> List[Tuple[int, 
             segment = [segment[0], segment[0]]
         result.append(segment)
     return result
-
 
 def best_pattern(pattern_list: list, data: pd.Series, dir: str) -> list:
     new_pattern_list = []
@@ -218,7 +215,7 @@ def find_confidence(segment: pd.Series) -> (float, float):
     else:
         return (0, 0)
 
-def find_width(pattern: pd.Series, selector) -> int:
+def find_width(pattern: pd.Series, selector: bool) -> int:
     pattern = pattern.values
     center = utils.find_extremum_index(pattern, selector)
     pattern_left = pattern[:center]
@@ -261,7 +258,7 @@ def get_interval(data: pd.Series, center: int, window_size: int, normalization =
         result_interval = subtract_min_without_nan(result_interval)
     return result_interval
 
-def get_borders_of_peaks(pattern_centers: List[int], data: pd.Series, window_size: int, confidence: float, max_border_factor = 1.0, inverse = False) -> List[Tuple[int, int]]:
+def get_borders_of_peaks(pattern_centers: List[int], data: pd.Series, window_size: int, confidence: float, max_border_factor = 1.0, inverse = False) -> TimeSeries:
     """
     Find start and end of patterns for peak
     max_border_factor - final border of pattern
@@ -453,6 +450,6 @@ def cut_dataframe(data: pd.DataFrame) -> pd.DataFrame:
         data['value'] = data['value'] - data_min
     return data
 
-def get_min_max(array, default):
+def get_min_max(array: list, default):
     return float(min(array, default=default)), float(max(array, default=default))
 

@@ -25,7 +25,8 @@ export type FindManyQuery = {
   labeledColor?: string,
   deletedColor?: string,
   detectorType?: DetectorType,
-  visible?: boolean
+  visible?: boolean,
+  collapsed?: boolean
 };
 
 export const ANALYTIC_UNIT_TYPES = {
@@ -53,7 +54,7 @@ export const ANALYTIC_UNIT_TYPES = {
   ],
   anomaly: [
     {
-      name: 'Anomaly',
+      name: 'Confidence Snake',
       value: 'ANOMALY'
     }
   ],
