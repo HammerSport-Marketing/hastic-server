@@ -29,7 +29,8 @@ export class AnomalyAnalyticUnit extends AnalyticUnit {
     labeledColor?: string,
     deletedColor?: string,
     visible?: boolean,
-    collapsed?: boolean
+    collapsed?: boolean,
+    metricName?: string
   ) {
     super(
       name,
@@ -46,7 +47,8 @@ export class AnomalyAnalyticUnit extends AnalyticUnit {
       deletedColor,
       DetectorType.ANOMALY,
       visible,
-      collapsed
+      collapsed,
+      metricName
     );
   }
 
@@ -97,7 +99,8 @@ export class AnomalyAnalyticUnit extends AnalyticUnit {
       obj.labeledColor,
       obj.deletedColor,
       obj.visible,
-      obj.collapsed
+      obj.collapsed,
+      obj.metricName
     );
   }
 }

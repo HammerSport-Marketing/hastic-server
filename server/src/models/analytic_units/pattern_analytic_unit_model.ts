@@ -19,7 +19,8 @@ export class PatternAnalyticUnit extends AnalyticUnit {
     labeledColor?: string,
     deletedColor?: string,
     visible?: boolean,
-    collapsed?: boolean
+    collapsed?: boolean,
+    metricName?: string
   ) {
     super(
       name,
@@ -36,7 +37,8 @@ export class PatternAnalyticUnit extends AnalyticUnit {
       deletedColor,
       DetectorType.PATTERN,
       visible,
-      collapsed
+      collapsed,
+      metricName
     );
   }
 
@@ -75,7 +77,8 @@ export class PatternAnalyticUnit extends AnalyticUnit {
       obj.labeledColor,
       obj.deletedColor,
       obj.visible,
-      obj.collapsed
+      obj.collapsed,
+      obj.metricName
     );
   }
 }

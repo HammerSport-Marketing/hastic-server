@@ -8,7 +8,7 @@ import * as _ from 'lodash';
 
 
 export function createAnalyticUnitFromObject(obj: any): AnalyticUnit {
-  if (obj === undefined) {
+  if(obj === undefined) {
     throw new Error('obj is undefined');
   }
 

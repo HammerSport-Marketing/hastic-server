@@ -483,6 +483,9 @@ export async function saveAnalyticUnitFromObject(obj: any): Promise<AnalyticUnit
   if(obj.datasource !== undefined) {
     obj.metric.datasource = obj.datasource;
   }
+  if(obj.metricName !== undefined) {
+    obj.metric.name = obj.metricName;
+  }
   const unit: AnalyticUnit.AnalyticUnit = AnalyticUnit.createAnalyticUnitFromObject(obj);
   const id = await AnalyticUnit.create(unit);
 
