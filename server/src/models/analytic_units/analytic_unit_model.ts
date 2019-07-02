@@ -78,4 +78,14 @@ export abstract class AnalyticUnit {
     };
   }
 
+  public isUiProperty(name: string) {
+    return name in [
+      'labeledColor',
+      'deletedColor',
+      'detectorType',
+      'visible',
+      'collapsed'
+    ];
+  }
+
 }

@@ -61,6 +61,7 @@ async function updateUnit(ctx: Router.IRouterContext) {
     throw new Error('Cannot update undefined id');
   }
 
+  const previousState = await AnalyticUnit.findById(analyticUnitObj.id);
   const updatedObj = await AnalyticUnit.update(analyticUnitObj.id, analyticUnitObj);
   const analyticUnit = AnalyticUnit.createAnalyticUnitFromObject(updatedObj);
 
