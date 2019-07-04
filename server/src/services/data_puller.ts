@@ -95,7 +95,7 @@ export class DataPuller {
   private async _runAnalyticUnitPuller(analyticUnit: AnalyticUnit.AnalyticUnit) {
     console.log(`run data puller for analytic unit ${analyticUnit.id}`);
     // TODO: lastDetectionTime can be in ns
-    const time = analyticUnit.lastDetectionTime + 1 || Date.now();
+    const time = Date.now();
     this._unitTimes[analyticUnit.id] = time;
 
     const dataGenerator = this.getDataGenerator(
@@ -150,6 +150,14 @@ export class DataPuller {
           throw new Error(`Analytic unit ${analyticUnit.id} is deleted from puller`);
         }
         const now = Date.now();
+
+        if(now <= time) {
+          return {
+            columns: [],
+            values: []
+          };
+        }
+
         const res = await this.pullData(analyticUnit, time, now);
         this._grafanaAvailableConsoleReporter(true);
         this.alertService.sendGrafanaAvailableWebhook();
