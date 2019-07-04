@@ -79,13 +79,15 @@ export abstract class AnalyticUnit {
   }
 
   public isUiProperty(name: string) {
-    return name in [
+    const uiElements = [
       'labeledColor',
       'deletedColor',
       'detectorType',
       'visible',
       'collapsed'
     ];
+
+    return (uiElements.includes(name));
   }
 
 }
