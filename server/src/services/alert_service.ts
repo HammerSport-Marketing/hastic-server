@@ -53,6 +53,31 @@ export class Alert {
   }
 }
 
+class AnomalyAlert extends Alert {
+  // TODO: remove this class when segments whill merged in analytic
+  EXPIRE_PERIOD_MS = 60000;
+  lastOccurence = 0;
+
+  public receive(segment: Segment) {
+    if(this.lastOccurence === 0) {
+      this.lastOccurence = segment.from;
+      if(this.enabled) {
+        sendNotification(this.makeNotification(segment));
+      }
+    } else {
+
+      if(segment.from - this.lastOccurence > this.EXPIRE_PERIOD_MS) {
+        if(this.enabled) {
+          console.log(`time between anomaly occurences ${segment.from - this.lastOccurence}ms, send alert`);
+          sendNotification(this.makeNotification(segment));
+        }
+      }
+
+      this.lastOccurence = segment.from;
+    }
+  }
+}
+
 class PatternAlert extends Alert {
 
   private lastSentSegment: Segment;
@@ -189,7 +214,7 @@ export class AlertService {
 
     alertsType[AnalyticUnit.DetectorType.THRESHOLD] = ThresholdAlert;
     alertsType[AnalyticUnit.DetectorType.PATTERN] = PatternAlert;
-    alertsType[AnalyticUnit.DetectorType.ANOMALY] = Alert;
+    alertsType[AnalyticUnit.DetectorType.ANOMALY] = AnomalyAlert;
 
     this._alerts[analyticUnit.id] = new alertsType[analyticUnit.detectorType](analyticUnit);
   }
