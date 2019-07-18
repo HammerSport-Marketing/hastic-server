@@ -109,8 +109,12 @@ async function onMessage(message: AnalyticsMessage) {
   }
 }
 
+function onAnalyticDown() {
+  taskResolvers.clear();
+}
+
 export function init() {
-  analyticsService = new AnalyticsService(onMessage);
+  analyticsService = new AnalyticsService(onMessage, onAnalyticDown);
 
   alertService = new AlertService();
   alertService.startAlerting();

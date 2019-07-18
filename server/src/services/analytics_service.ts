@@ -11,7 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as _ from 'lodash';
 
-
+const FAILED_PINGS_LIMIT = 100;
 export class AnalyticsService {
 
   private _alertService = new AlertService();
@@ -26,8 +26,12 @@ export class AnalyticsService {
   private _productionMode = false;
   private _inDocker = false;
   private _queue: AnalyticsTask[] = [];
+  private _failedPingsNumber = 0;
 
-  constructor(private _onMessage: (message: AnalyticsMessage) => void) {
+  constructor(
+    private _onMessage: (message: AnalyticsMessage) => void,
+    private _onDownCallback: () => void
+  ) {
     this._productionMode =  config.PRODUCTION_MODE;
     this._inDocker = config.INSIDE_DOCKER;
     this._init();
@@ -203,6 +207,7 @@ export class AnalyticsService {
       this._lastAlive = new Date(Date.now());
       if(!this._ready) {
         this._ready = true;
+        this._failedPingsNumber = 0;
         this._onAnalyticsUp();
       }
       return;
@@ -226,6 +231,12 @@ export class AnalyticsService {
       }
       if(!this._pingResponded && this._ready) {
         this._ready = false;
+        this._failedPingsNumber++;
+
+        if(this._failedPingsNumber > FAILED_PINGS_LIMIT) {
+          this._onDownCallback();
+        }
+
         this._onAnalyticsDown();
       }
       this._pingResponded = false;
