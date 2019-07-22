@@ -16,7 +16,6 @@ import { queryByMetric, GrafanaUnavailable, DatasourceUnavailable } from 'grafan
 
 
 import * as _ from 'lodash';
-import { WebhookType } from '../services/notification_service';
 import { AnomalyAnalyticUnit } from '../models/analytic_units/anomaly_analytic_unit_model';
 
 const SECONDS_IN_MINUTE = 60;
@@ -109,12 +108,19 @@ async function onMessage(message: AnalyticsMessage) {
   }
 }
 
-function onAnalyticDown() {
-  taskResolvers.clear();
+function onAnalyticRestart() {
+  const message = 'Analytic process restarted';
+  console.log(message);
+  taskResolvers.forEach((resolver, analyticUnitId) =>{
+    resolver({
+      status: AnalyticUnit.AnalyticUnitStatus.FAILED,
+      message
+    });
+  });
 }
 
 export function init() {
-  analyticsService = new AnalyticsService(onMessage, onAnalyticDown);
+  analyticsService = new AnalyticsService(onMessage, onAnalyticRestart);
 
   alertService = new AlertService();
   alertService.startAlerting();

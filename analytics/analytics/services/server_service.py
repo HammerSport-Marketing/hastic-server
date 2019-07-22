@@ -7,6 +7,7 @@ import logging
 import json
 import asyncio
 import traceback
+import uuid
 
 import utils.concurrent
 import utils.meta
@@ -22,10 +23,17 @@ SERVER_SOCKET_RECV_LOOP_INTERRUPTED = False
 
 @utils.meta.JSONClass
 class ServerMessage:
-    def __init__(self, method: str, payload: object = None, request_id: int = None):
+    def __init__(
+        self,
+        method: str,
+        payload: object = None,
+        request_id: int = None,
+        uuid: str = None
+    ):
         self.method = method
         self.payload = payload
         self.request_id = request_id
+        self.uuid = uuid
 
 
 class ServerService(utils.concurrent.AsyncZmqActor):
@@ -35,6 +43,7 @@ class ServerService(utils.concurrent.AsyncZmqActor):
         self.__aiter_inited = False
         self.__request_next_id = 1
         self.__responses = dict()
+        self.__uuid = uuid.uuid1()
         self.start()
 
     async def send_message_to_server(self, message: ServerMessage):
@@ -46,13 +55,17 @@ class ServerService(utils.concurrent.AsyncZmqActor):
         # zmq.proxy(self.__actor_socket, self.__server_socket)
         # and do here something like:
         # self.__actor_socket.send_string(json.dumps(message.to_json()))
+        message.uuid = self.__uuid
         await self._put_message_to_thread(json.dumps(message.to_json()))
 
     async def send_request_to_server(self, message: ServerMessage) -> object:
         if message.request_id is not None:
             raise ValueError('Message can`t have request_id before it is scheduled')
+
         request_id = message.request_id = self.__request_next_id
         self.request_next_id = self.__request_next_id + 1
+        message.uuid = self.__uuid
+
         asyncio.ensure_future(self.send_message_to_server(message))
         # you should await self.__responses[request_id] which should be a task, 
         # which you resolve somewhere else
@@ -95,7 +108,8 @@ class ServerService(utils.concurrent.AsyncZmqActor):
                 asyncio.ensure_future(self._send_message_from_thread(received_string))
 
     async def __handle_ping(self):
-        await self.__server_socket.send_string('PONG')
+        pong = f'PONG {self.__uuid}'
+        await self.__server_socket.send_string(pong)
 
     def __parse_message_or_save(self, text: str) -> Optional[ServerMessage]:
         try:

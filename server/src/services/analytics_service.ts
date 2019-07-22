@@ -26,11 +26,11 @@ export class AnalyticsService {
   private _productionMode = false;
   private _inDocker = false;
   private _queue: AnalyticsTask[] = [];
-  private _failedPingsNumber = 0;
+  private _currentUuid: string = null;
 
   constructor(
     private _onMessage: (message: AnalyticsMessage) => void,
-    private _onDownCallback: () => void
+    private _onRestart: () => void
   ) {
     this._productionMode =  config.PRODUCTION_MODE;
     this._inDocker = config.INSIDE_DOCKER;
@@ -180,7 +180,7 @@ export class AnalyticsService {
   }
 
   private _onAnalyticsUp() {
-    const msg = 'Analytics is up';
+    const msg = `Analytics is up (${this._currentUuid})`;
     for(let i in _.range(this._queue.length)) {
       // TODO: check if task is done before removing it from the queue
       this.sendTask(this._queue.shift(), true);
@@ -190,7 +190,7 @@ export class AnalyticsService {
   }
 
   private async _onAnalyticsDown() {
-    const msg = 'Analytics is down';
+    const msg = `Analytics is down (${this._currentUuid})`;
     console.log(msg);
     // TODO: enable analytics down webhooks when it stops bouncing
     this._alertService.sendMsg(msg, WebhookType.FAILURE);
@@ -201,13 +201,19 @@ export class AnalyticsService {
 
   private _onAnalyticsMessage(data: any) {
 
-    let text = data.toString();
-    if(text === 'PONG') {
+    let text: string = data.toString();
+    if(_.startsWith(text, 'PONG')) {
+      const newUuid = _.last(text.split(' '));
+
+      if(newUuid !== this._currentUuid) {
+        this._onRestart();
+        this._currentUuid = newUuid;
+      }
+
       this._pingResponded = true;
       this._lastAlive = new Date(Date.now());
       if(!this._ready) {
         this._ready = true;
-        this._failedPingsNumber = 0;
         this._onAnalyticsUp();
       }
       return;
@@ -231,12 +237,6 @@ export class AnalyticsService {
       }
       if(!this._pingResponded && this._ready) {
         this._ready = false;
-        this._failedPingsNumber++;
-
-        if(this._failedPingsNumber > FAILED_PINGS_LIMIT) {
-          this._onDownCallback();
-        }
-
         this._onAnalyticsDown();
       }
       this._pingResponded = false;
