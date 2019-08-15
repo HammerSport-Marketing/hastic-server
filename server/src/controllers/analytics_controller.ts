@@ -565,9 +565,9 @@ export async function getDetectionSpans(
   }
 
   const spanBorders = Detection.getSpanBorders(readySpans);
-  const alreadyRunningSpansbBorders = Detection.getSpanBorders(alreadyRunningSpans);
+  const alreadyRunningSpansBorders = Detection.getSpanBorders(alreadyRunningSpans);
 
-  const newDetectionSpans = getNonIntersectedSpans(from, to, spanBorders.concat(alreadyRunningSpansbBorders));
+  const newDetectionSpans = getNonIntersectedSpans(from, to, spanBorders.concat(alreadyRunningSpansBorders));
   if(newDetectionSpans.length === 0) {
     return _.concat(readySpans, alreadyRunningSpans);
   }

@@ -122,7 +122,7 @@ export async function insertSpan(span: DetectionSpan) {
 export function getSpanBorders(spans: DetectionSpan[]): number[] {
   let spanBorders: number[] = [];
 
-  _.sortBy(spans.map(span => span.toObject()), 'from')
+  _.sortBy(spans.map(span => span.toObject()), span => span.from)
     .forEach(span => {
       spanBorders.push(span.from);
       spanBorders.push(span.to);
