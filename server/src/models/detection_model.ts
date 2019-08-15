@@ -66,13 +66,8 @@ export class DetectionSpan {
 
 export type FindManyQuery = {
   status?: DetectionStatus,
-  // TODO: 
-  // from?: { $gte?: number, $lte?: number }
-  // to?: { $gte?: number, $lte?: number }
-  timeFromLTE?: number,
-  timeToGTE?: number,
-  timeFromGTE?: number,
-  timeToLTE?: number,
+  from?: { $gte?: number, $lte?: number }
+  to?: { $gte?: number, $lte?: number }
 }
 
 export async function findMany(id: AnalyticUnitId, query?: FindManyQuery): Promise<DetectionSpan[]> {
@@ -80,17 +75,11 @@ export async function findMany(id: AnalyticUnitId, query?: FindManyQuery): Promi
   if(query.status !== undefined) {
     dbQuery.status = query.status;
   }
-  if(query.timeFromLTE !== undefined) {
-    dbQuery.from = { $lte: query.timeFromLTE };
+  if(query.from !== undefined) {
+    dbQuery.from = query.from;
   }
-  if(query.timeToGTE !== undefined) {
-    dbQuery.to = { $gte: query.timeToGTE };
-  }
-  if(query.timeFromGTE !== undefined) {
-    dbQuery.from = { $gte: query.timeFromGTE };
-  }
-  if(query.timeToLTE !== undefined) {
-    dbQuery.to = { $lte: query.timeToLTE };
+  if(query.to !== undefined) {
+    dbQuery.to = query.to;
   }
 
   const spans = await db.findMany(dbQuery);
@@ -106,24 +95,24 @@ export async function getIntersectedSpans(
   to: number,
   status?: DetectionStatus
 ): Promise<DetectionSpan[]> {
-  return findMany(analyticUnitId, { status, timeFromLTE: to, timeToGTE: from });
+  return findMany(analyticUnitId, { status, from: { $lte: to }, to: { $gte: from } });
 }
 
 export async function insertSpan(span: DetectionSpan) {
   let spanToInsert = span.toObject();
 
   const intersections = await getIntersectedSpans(span.analyticUnitId, span.from, span.to, span.status);
-  if(!_.isEmpty(intersections) && span.status === DetectionStatus.READY) {
-    let minFrom: number = _.minBy(intersections, 'from').from;
+  if(intersections.length > 0 && span.status === DetectionStatus.READY) {
+    let minFrom = _.minBy(intersections, span => span.from).from;
     minFrom = Math.min(span.from, minFrom);
 
-    let maxTo: number = _.maxBy(intersections, 'to').to;
+    let maxTo = _.maxBy(intersections, span => span.to).to;
     maxTo = Math.max(span.to, maxTo);
 
-    const spansInside = await findMany(span.analyticUnitId, { timeFromGTE: minFrom, timeToLTE: maxTo });
-    const toRemove = _.concat(intersections.map(span => span.id), spansInside.map(span => span.id));
+    const spansInside = await findMany(span.analyticUnitId, { from: { $gte: minFrom }, to: { $lte: maxTo } });
+    const spanIdsToRemove = _.concat(intersections.map(span => span.id), spansInside.map(span => span.id));
 
-    await db.removeMany(toRemove);
+    await db.removeMany(spanIdsToRemove);
 
     spanToInsert = new DetectionSpan(span.analyticUnitId, minFrom, maxTo, span.status).toObject();
   }

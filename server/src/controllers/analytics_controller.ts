@@ -190,7 +190,7 @@ async function getQueryRange(
 async function query(
   analyticUnit: AnalyticUnit.AnalyticUnit,
   range: TimeRange
-) {
+): Promise<[number, number][]> {
   console.log(`query time range: from ${new Date(range.from)} to ${new Date(range.to)}`);
 
   const grafanaUrl = getGrafanaUrl(analyticUnit.grafanaUrl);
@@ -554,7 +554,7 @@ export async function getDetectionSpans(
 
   const analyticUnitCache = await AnalyticUnitCache.findById(analyticUnitId);
 
-  if(_.isEmpty(readySpans)) {
+  if(readySpans.length === 0 && alreadyRunningSpans.length === 0) {
     const span = await runDetectionOnExtendedSpan(analyticUnitId, from, to, analyticUnitCache);
 
     if(span === null) {
@@ -565,37 +565,27 @@ export async function getDetectionSpans(
   }
 
   const spanBorders = Detection.getSpanBorders(readySpans);
+  const alreadyRunningSpansbBorders = Detection.getSpanBorders(alreadyRunningSpans);
 
-  let newDetectionSpans = getNonIntersectedSpans(from, to, spanBorders);
+  const newDetectionSpans = getNonIntersectedSpans(from, to, spanBorders.concat(alreadyRunningSpansbBorders));
   if(newDetectionSpans.length === 0) {
-    return [ new Detection.DetectionSpan(analyticUnitId, from, to, Detection.DetectionStatus.READY) ];
+    return _.concat(readySpans, alreadyRunningSpans);
   }
 
-  let runningSpansPromises = [];
-  let newRunningSpans: Detection.DetectionSpan[] = [];
-  runningSpansPromises = newDetectionSpans.map(async span => {
-    const insideRunning = await Detection.findMany(analyticUnitId, {
-      status: Detection.DetectionStatus.RUNNING,
-      timeFromLTE: span.from,
-      timeToGTE: span.to
-    });
+  const runningSpansPromises = newDetectionSpans.map(
+    async span => runDetectionOnExtendedSpan(analyticUnitId, span.from, span.to, analyticUnitCache)
+  );
 
-    if(_.isEmpty(insideRunning)) {
-      const runningSpan = await runDetectionOnExtendedSpan(analyticUnitId, span.from, span.to, analyticUnitCache);
-      newRunningSpans.push(runningSpan);
-    }
-  });
+  const newRunningSpans = await Promise.all(runningSpansPromises);
 
-  await Promise.all(runningSpansPromises);
-
-  return _.concat(readySpans, alreadyRunningSpans, newRunningSpans.filter(span => span !== null));
+  return _.concat(readySpans, alreadyRunningSpans, newRunningSpans);
 }
 
 async function getPayloadData(
   analyticUnit: AnalyticUnit.AnalyticUnit,
   from: number,
-  to:number
-) {
+  to: number
+): Promise<[number, number][]> {
   let range: TimeRange;
   if(from !== undefined && to !== undefined) {
     range = { from, to };
@@ -609,7 +599,7 @@ async function getPayloadData(
     range.from = range.to - intersection;
   }
 
-  return await query(analyticUnit, range);
+  return query(analyticUnit, range);
 }
 
 async function runDetectionOnExtendedSpan(
