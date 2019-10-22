@@ -13,8 +13,8 @@ export type SegmentId = string;
 export class Segment {
   constructor(
     public analyticUnitId: AnalyticUnitId,
-    public from: number,
-    public to: number,
+    public from_timestamp: number,
+    public to_timestamp: number,
     public labeled: boolean = false,
     public deleted: boolean = false,
     public id?: SegmentId,
@@ -23,16 +23,16 @@ export class Segment {
     if(analyticUnitId === undefined) {
       throw new Error('AnalyticUnitId is undefined');
     }
-    if(from === undefined) {
+    if(from_timestamp === undefined) {
       throw new Error('from is undefined');
     }
-    if(isNaN(from)) {
+    if(isNaN(from_timestamp)) {
       throw new Error('from is NaN');
     }
-    if(to === undefined) {
+    if(to_timestamp === undefined) {
       throw new Error('to is undefined');
     }
-    if(isNaN(to)) {
+    if(isNaN(to_timestamp)) {
       throw new Error('to is NaN');
     }
   }
@@ -41,8 +41,8 @@ export class Segment {
     return {
       _id: this.id,
       analyticUnitId: this.analyticUnitId,
-      from: this.from,
-      to: this.to,
+      from_timestamp: this.from_timestamp,
+      to_timestamp: this.to_timestamp,
       labeled: this.labeled,
       deleted: this.deleted,
       message: this.message
@@ -63,8 +63,8 @@ export class Segment {
 
   public equals(obj: Segment) : boolean {
     return this.analyticUnitId === obj.analyticUnitId &&
-           this.from === obj.from &&
-           this.to === obj.to &&
+           this.from_timestamp === obj.from_timestamp &&
+           this.to_timestamp === obj.to_timestamp &&
            this.labeled === this.labeled &&
            this.deleted === this.deleted;
   }
@@ -72,8 +72,8 @@ export class Segment {
 
 export type FindManyQuery = {
   $or?: any,
-  from?: { $gte?: number, $lte?: number },
-  to?: { $gte?: number, $lte?: number },
+  from_timestamp?: { $gte?: number, $lte?: number },
+  to_timestamp?: { $gte?: number, $lte?: number },
   labeled?: boolean,
   deleted?: boolean
 }
@@ -90,11 +90,11 @@ export async function findMany(id: AnalyticUnitId, query: FindManyQuery): Promis
   if(query.deleted !== undefined) {
     dbQuery.deleted = query.deleted;
   }
-  if(query.from !== undefined) {
-    dbQuery.from = query.from;
+  if(query.from_timestamp !== undefined) {
+    dbQuery.from_timestamp = query.from_timestamp;
   }
-  if(query.to !== undefined) {
-    dbQuery.to = query.to;
+  if(query.to_timestamp !== undefined) {
+    dbQuery.to_timestamp = query.to_timestamp;
   }
   if(query.$or !== undefined) {
     dbQuery.$or = query.$or;
@@ -115,15 +115,15 @@ export async function findMany(id: AnalyticUnitId, query: FindManyQuery): Promis
  */
 export async function findIntersectedSegments(
   analyticUnitId: AnalyticUnit.AnalyticUnitId,
-  from?: number,
-  to?: number
+  from_timestamp?: number,
+  to_timestamp?: number
 ): Promise<Segment[]> {
   let query: FindManyQuery = {};
-  if(from !== undefined) {
-    query.to = { $gte: from };
+  if(from_timestamp !== undefined) {
+    query.to_timestamp = { $gte: from_timestamp };
   }
-  if(to !== undefined) {
-    query.from = { $lte: to };
+  if(to_timestamp !== undefined) {
+    query.from_timestamp = { $lte: to_timestamp };
   }
   return findMany(analyticUnitId, query);
 }
@@ -170,8 +170,8 @@ export async function mergeAndInsertSegments(segments: Segment[]): Promise<{
     let intersectedSegments: Segment[] = [];
     if(detector === AnalyticUnit.DetectorType.PATTERN) {
       intersectedSegments = await findMany(analyticUnitId, {
-        to: { $gte: segment.from },
-        from: { $lte: segment.to },
+        to_timestamp: { $gte: segment.from_timestamp },
+        from_timestamp: { $lte: segment.to_timestamp },
         labeled: segment.labeled,
         deleted: segment.deleted
       });
@@ -184,8 +184,8 @@ export async function mergeAndInsertSegments(segments: Segment[]): Promise<{
         }
       }
       intersectedSegments = await findMany(analyticUnitId, {
-        to: { $gte: segment.from - intersectionRangeExtension },
-        from: { $lte: segment.to + intersectionRangeExtension },
+        to_timestamp: { $gte: segment.from_timestamp - intersectionRangeExtension },
+        from_timestamp: { $lte: segment.to_timestamp + intersectionRangeExtension },
         labeled: segment.labeled,
         deleted: segment.deleted
       });
@@ -193,8 +193,8 @@ export async function mergeAndInsertSegments(segments: Segment[]): Promise<{
 
     if(intersectedSegments.length > 0) {
       let intersectedIds = intersectedSegments.map(s => s.id);
-      let minFromSegment = _.minBy(intersectedSegments.concat(segment), s => s.from);
-      let maxToSegment = _.maxBy(intersectedSegments.concat(segment), s => s.to);
+      let minFromSegment = _.minBy(intersectedSegments.concat(segment), s => s.from_timestamp);
+      let maxToSegment = _.maxBy(intersectedSegments.concat(segment), s => s.to_timestamp);
 
       if(minFromSegment === undefined) {
         throw new Error('minFromSegment is undefined');
@@ -204,11 +204,11 @@ export async function mergeAndInsertSegments(segments: Segment[]): Promise<{
         throw new Error('maxToSegment is undefined');
       }
 
-      let from = minFromSegment.from;
-      let to = maxToSegment.to;
+      let from_timestamp = minFromSegment.from_timestamp;
+      let to_timestamp = maxToSegment.to_timestamp;
       let newSegment = Segment.fromObject(segment.toObject());
-      newSegment.from = from;
-      newSegment.to = to;
+      newSegment.from_timestamp = from_timestamp;
+      newSegment.to_timestamp = to_timestamp;
       segmentIdsToRemove = segmentIdsToRemove.concat(_.compact(intersectedIds));
       segmentsToInsert.push(newSegment);
     } else {
@@ -236,8 +236,8 @@ async function isIntersectedWithExistingLabeled(segment: Segment): Promise<boole
   const intersected = await findMany(segment.analyticUnitId, {
     labeled: true,
     deleted: false,
-    from: { $lte: segment.to },
-    to: { $gte: segment.from }
+    from_timestamp: { $lte: segment.to_timestamp },
+    to_timestamp: { $gte: segment.from_timestamp }
   });
 
   return intersected.length > 0;
@@ -247,8 +247,8 @@ async function isIntersectedWithExistingDeleted(segment: Segment): Promise<boole
   const intersected = await findMany(segment.analyticUnitId, {
     labeled: false,
     deleted: true,
-    from: { $lte: segment.to },
-    to: { $gte: segment.from }
+    from_timestamp: { $lte: segment.to_timestamp },
+    to_timestamp: { $gte: segment.from_timestamp }
   });
 
   return intersected.length > 0;

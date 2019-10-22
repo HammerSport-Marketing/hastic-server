@@ -10,7 +10,7 @@ export function buildSegments(times: number[][]): Segment.Segment[] {
 }
 
 export function convertSegmentsToTimeRanges(segments: Segment.Segment[]): number[][] {
-  const ranges = segments.map(segment => [segment.from, segment.to]);
+  const ranges = segments.map(segment => [segment.from_timestamp, segment.to_timestamp]);
   return _.sortBy(ranges, range => range[0]);
 }
 

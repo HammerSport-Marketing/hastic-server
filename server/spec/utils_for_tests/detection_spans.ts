@@ -8,7 +8,7 @@ export type DetectionSpanOptions = { from: number, to: number, status: Detection
 
 export function buildSpans(options: DetectionSpanOptions[]): Detection.DetectionSpan[] {
   return options.map(option => {
-    return new Detection.DetectionSpan(TEST_ANALYTIC_UNIT_ID, option.from, option.to, option.status);
+    return new Detection.DetectionSpan(TEST_ANALYTIC_UNIT_ID, option.from_timestamp, option.to_timestamp, option.status);
   });
 }
 
@@ -19,8 +19,8 @@ export async function insertSpans(options: DetectionSpanOptions[]): Promise<void
 }
 
 export function convertSpansToOptions(spans: Detection.DetectionSpan[]): DetectionSpanOptions[] {
-  const spansOptions = spans.map(span => ({ from: span.from, to: span.to, status: span.status }));
-  return _.sortBy(spansOptions, spanOptions => spanOptions.from);
+  const spansOptions = spans.map(span => ({ from: span.from_timestamp, to: span.to, status: span.status }));
+  return _.sortBy(spansOptions, spanOptions => spanOptions.from_timestamp);
 }
 
 export async function clearSpansDB(): Promise<void> {

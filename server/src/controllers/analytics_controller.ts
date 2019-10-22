@@ -24,7 +24,7 @@ type DetectionResult = any;
 // TODO: TableTimeSeries is bad name
 type TableTimeSeries = { values: [number, number][], columns: string[] };
 // TODO: move type definitions somewhere
-type TimeRange = { from: number, to: number };
+type TimeRange = { from_timestamp: number, to_timestamp: number };
 export type TaskResolver = (taskResult: TaskResult) => void;
 
 type HSRResult = {
@@ -165,8 +165,8 @@ async function getQueryRange(
     case AnalyticUnit.DetectorType.THRESHOLD:
       const now = Date.now();
       return {
-        from: now - 5 * SECONDS_IN_MINUTE * 1000,
-        to: now
+        from_timestamp: now - 5 * SECONDS_IN_MINUTE * 1000,
+        to_timestamp: now
       };
 
     case AnalyticUnit.DetectorType.ANOMALY:
@@ -174,8 +174,8 @@ async function getQueryRange(
       if(segments.length === 0) {
         const now = Date.now();
         return {
-          from: now - 5 * SECONDS_IN_MINUTE * 1000,
-          to: now
+          from_timestamp: now - 5 * SECONDS_IN_MINUTE * 1000,
+          to_timestamp: now
         };
       }
       else {
@@ -191,7 +191,7 @@ async function query(
   analyticUnit: AnalyticUnit.AnalyticUnit,
   range: TimeRange
 ) {
-  console.log(`query time range: from ${new Date(range.from)} to ${new Date(range.to)}`);
+  console.log(`query time range: from ${new Date(range.from_timestamp)} to ${new Date(range.to_timestamp)}`);
 
   const grafanaUrl = getGrafanaUrl(analyticUnit.grafanaUrl);
   let data;
@@ -200,8 +200,8 @@ async function query(
     const queryResult = await queryByMetric(
       analyticUnit.metric,
       grafanaUrl,
-      range.from,
-      range.to,
+      range.from_timestamp,
+      range.to_timestamp,
       HASTIC_API_KEY
     );
     data = queryResult.values;
@@ -235,17 +235,17 @@ function getQueryRangeForLearningBySegments(segments: Segment.Segment[]) {
     throw new Error('Need at least 1 labeled segment');
   }
 
-  let from = _.minBy(segments, s => s.from).from;
-  let to = _.maxBy(segments, s => s.to).to;
+  let from_timestamp = _.minBy(segments, s => s.from_timestamp).from_timestamp;
+  let to_timestamp = _.maxBy(segments, s => s.to_timestamp).to_timestamp;
   let now = Date.now();
-  let leftOffset = now - to;
-  from -= Math.round(leftOffset);
-  to = now;
+  let leftOffset = now - to_timestamp;
+  from_timestamp -= Math.round(leftOffset);
+  to_timestamp = now;
 
-  return { from, to };
+  return { from_timestamp, to_timestamp };
 }
 
-export async function runLearning(id: AnalyticUnit.AnalyticUnitId, from?: number, to?: number) {
+export async function runLearning(id: AnalyticUnit.AnalyticUnitId, from_timestamp?: number, to_timestamp?: number) {
   console.log(`LEARNING started for ${id}`);
   try {
 
@@ -283,14 +283,14 @@ export async function runLearning(id: AnalyticUnit.AnalyticUnitId, from?: number
         let deletedSegmentsObjs = deletedSegments.map(s => s.toObject());
         segmentObjs = _.concat(segmentObjs, deletedSegmentsObjs);
         taskPayload.segments = segmentObjs;
-        taskPayload.data = await getPayloadData(analyticUnit, from, to);
+        taskPayload.data = await getPayloadData(analyticUnit, from_timestamp, to_timestamp);
         break;
       case AnalyticUnit.DetectorType.THRESHOLD:
         taskPayload.threshold = {
           value: (analyticUnit as ThresholdAnalyticUnit).value,
           condition: (analyticUnit as ThresholdAnalyticUnit).condition
         };
-        taskPayload.data = await getPayloadData(analyticUnit, from, to);
+        taskPayload.data = await getPayloadData(analyticUnit, from_timestamp, to_timestamp);
         break;
       case AnalyticUnit.DetectorType.ANOMALY:
         taskPayload.anomaly = {
@@ -299,7 +299,7 @@ export async function runLearning(id: AnalyticUnit.AnalyticUnitId, from?: number
           enableBounds: (analyticUnit as AnomalyAnalyticUnit).enableBounds
         };
 
-        taskPayload.data = await getPayloadData(analyticUnit, from, to);
+        taskPayload.data = await getPayloadData(analyticUnit, from_timestamp, to_timestamp);
 
         const seasonality = (analyticUnit as AnomalyAnalyticUnit).seasonality;
         if(seasonality > 0) {
@@ -338,7 +338,7 @@ export async function runLearning(id: AnalyticUnit.AnalyticUnitId, from?: number
 
 }
 
-export async function runDetect(id: AnalyticUnit.AnalyticUnitId, from?: number, to?: number) {
+export async function runDetect(id: AnalyticUnit.AnalyticUnitId, from_timestamp?: number, to_timestamp?: number) {
   let previousLastDetectionTime: number = undefined;
   let range: TimeRange;
   let intersection = 0;
@@ -357,14 +357,14 @@ export async function runDetect(id: AnalyticUnit.AnalyticUnitId, from?: number, 
     let analyticUnitType = unit.type;
     const detector = unit.detectorType;
 
-    if(from !== undefined && to !== undefined) {
-      range = { from, to };
+    if(from_timestamp !== undefined && to_timestamp !== undefined) {
+      range = { from_timestamp, to_timestamp };
     } else {
       range = await getQueryRange(id, detector);
     }
 
-    if(range.to - range.from < intersection) {
-      range.from = range.to - intersection;
+    if(range.to_timestamp - range.from_timestamp < intersection) {
+      range.from_timestamp = range.to_timestamp - intersection;
     }
 
     const data = await query(unit, range);
@@ -387,14 +387,14 @@ export async function runDetect(id: AnalyticUnit.AnalyticUnitId, from?: number, 
     await Segment.mergeAndInsertSegments(payload.segments);
     await Promise.all([
       AnalyticUnitCache.setData(id, payload.cache),
-      AnalyticUnit.setDetectionTime(id, range.to - intersection),
+      AnalyticUnit.setDetectionTime(id, range.to_timestamp - intersection),
     ]);
     await AnalyticUnit.setStatus(id, AnalyticUnit.AnalyticUnitStatus.READY);
     await Detection.insertSpan(
       new Detection.DetectionSpan(
         id,
-        range.from + intersection,
-        range.to - intersection,
+        range.from_timestamp + intersection,
+        range.to_timestamp - intersection,
         Detection.DetectionStatus.READY
       )
     );
@@ -408,8 +408,8 @@ export async function runDetect(id: AnalyticUnit.AnalyticUnitId, from?: number, 
     await Detection.insertSpan(
       new Detection.DetectionSpan(
         id,
-        range.from + intersection,
-        range.to - intersection,
+        range.from_timestamp + intersection,
+        range.to_timestamp - intersection,
         Detection.DetectionStatus.FAILED
       )
     );
@@ -454,9 +454,9 @@ async function processDetectionResult(analyticUnitId: AnalyticUnit.AnalyticUnitI
   }
   console.log(`got detection result for ${analyticUnitId} with ${detectionResult.segments.length} segments`);
 
-  const sortedSegments: {from, to, message?}[] = _.sortBy(detectionResult.segments, 'from');
+  const sortedSegments: {from_timestamp, to_timestamp, message?}[] = _.sortBy(detectionResult.segments, 'from_timestamp');
   const segments = sortedSegments.map(
-    segment => new Segment.Segment(analyticUnitId, segment.from, segment.to, false, false, undefined, segment.message)
+    segment => new Segment.Segment(analyticUnitId, segment.from_timestamp, segment.to_timestamp, false, false, undefined, segment.message)
   );
 
   return {
@@ -534,28 +534,28 @@ export async function updateSegments(
 
 export async function runLearningWithDetection(
   id: AnalyticUnit.AnalyticUnitId,
-  from?: number,
-  to?: number
+  from_timestamp?: number,
+  to_timestamp?: number
 ): Promise<void> {
   // TODO: move setting status somehow "inside" learning
   await AnalyticUnit.setStatus(id, AnalyticUnit.AnalyticUnitStatus.PENDING);
-  runLearning(id, from, to)
-    .then(() => runDetect(id, from, to))
+  runLearning(id, from_timestamp, to_timestamp)
+    .then(() => runDetect(id, from_timestamp, to_timestamp))
     .catch(err => console.error(err));
 }
 
 export async function getDetectionSpans(
   analyticUnitId: AnalyticUnit.AnalyticUnitId,
-  from: number,
-  to: number
+  from_timestamp: number,
+  to_timestamp: number
 ): Promise<Detection.DetectionSpan[]> {
-  const readySpans = await Detection.getIntersectedSpans(analyticUnitId, from, to, Detection.DetectionStatus.READY);
-  const alreadyRunningSpans = await Detection.getIntersectedSpans(analyticUnitId, from, to, Detection.DetectionStatus.RUNNING);
+  const readySpans = await Detection.getIntersectedSpans(analyticUnitId, from_timestamp, to_timestamp, Detection.DetectionStatus.READY);
+  const alreadyRunningSpans = await Detection.getIntersectedSpans(analyticUnitId, from_timestamp, to_timestamp, Detection.DetectionStatus.RUNNING);
 
   const analyticUnitCache = await AnalyticUnitCache.findById(analyticUnitId);
 
   if(_.isEmpty(readySpans)) {
-    const span = await runDetectionOnExtendedSpan(analyticUnitId, from, to, analyticUnitCache);
+    const span = await runDetectionOnExtendedSpan(analyticUnitId, from_timestamp, to_timestamp, analyticUnitCache);
 
     if(span === null) {
       return [];
@@ -564,9 +564,9 @@ export async function getDetectionSpans(
     }
   }
 
-  let newDetectionSpans = cutSegmentWithSegments({ from, to }, readySpans);
+  let newDetectionSpans = cutSegmentWithSegments({ from_timestamp, to_timestamp }, readySpans);
   if(newDetectionSpans.length === 0) {
-    return [ new Detection.DetectionSpan(analyticUnitId, from, to, Detection.DetectionStatus.READY) ];
+    return [new Detection.DetectionSpan(analyticUnitId, from_timestamp, to_timestamp, Detection.DetectionStatus.READY) ];
   }
 
   let runningSpansPromises = [];
@@ -574,12 +574,12 @@ export async function getDetectionSpans(
   runningSpansPromises = newDetectionSpans.map(async span => {
     const insideRunning = await Detection.findMany(analyticUnitId, {
       status: Detection.DetectionStatus.RUNNING,
-      timeFromLTE: span.from,
-      timeToGTE: span.to
+      timeFromLTE: span.from_timestamp,
+      timeToGTE: span.to_timestamp
     });
 
     if(_.isEmpty(insideRunning)) {
-      const runningSpan = await runDetectionOnExtendedSpan(analyticUnitId, span.from, span.to, analyticUnitCache);
+      const runningSpan = await runDetectionOnExtendedSpan(analyticUnitId, span.from_timestamp, span.to_timestamp, analyticUnitCache);
       newRunningSpans.push(runningSpan);
     }
   });
@@ -591,20 +591,20 @@ export async function getDetectionSpans(
 
 async function getPayloadData(
   analyticUnit: AnalyticUnit.AnalyticUnit,
-  from: number,
-  to: number
+  from_timestamp: number,
+  to_timestamp: number
 ) {
   let range: TimeRange;
-  if(from !== undefined && to !== undefined) {
-    range = { from, to };
+  if(from_timestamp !== undefined && to_timestamp !== undefined) {
+    range = { from_timestamp, to_timestamp };
   } else {
     range = await getQueryRange(analyticUnit.id, analyticUnit.detectorType);
   }
 
   const cache = await AnalyticUnitCache.findById(analyticUnit.id);
   const intersection = cache.getIntersection();
-  if(range.to - range.from < intersection) {
-    range.from = range.to - intersection;
+  if(range.to - range.from_timestamp < intersection) {
+    range.from_timestamp = range.to_timestamp - intersection;
   }
 
   return await query(analyticUnit, range);
@@ -612,8 +612,8 @@ async function getPayloadData(
 
 async function runDetectionOnExtendedSpan(
   analyticUnitId: AnalyticUnit.AnalyticUnitId,
-  from: number,
-  to: number,
+  from_timestamp: number,
+  to_timestamp: number,
   analyticUnitCache: AnalyticUnitCache.AnalyticUnitCache
 ): Promise<Detection.DetectionSpan> {
   if(analyticUnitCache === null) {
@@ -622,14 +622,14 @@ async function runDetectionOnExtendedSpan(
 
   const intersection = analyticUnitCache.getIntersection();
 
-  const intersectedFrom = Math.max(from - intersection, 0);
-  const intersectedTo = to + intersection;
+  const intersectedFrom = Math.max(from_timestamp - intersection, 0);
+  const intersectedTo = to_timestamp + intersection;
   runDetect(analyticUnitId, intersectedFrom, intersectedTo);
 
   const detection = new Detection.DetectionSpan(
     analyticUnitId,
-    from,
-    to,
+    from_timestamp,
+    to_timestamp,
     Detection.DetectionStatus.RUNNING
   );
   await Detection.insertSpan(detection);
@@ -638,15 +638,15 @@ async function runDetectionOnExtendedSpan(
 
 export async function getHSR(
   analyticUnit: AnalyticUnit.AnalyticUnit,
-  from: number,
-  to: number
+  from_timestamp: number,
+  to_timestamp: number
 ): Promise< HSRResult | undefined> {
   try {
     const grafanaUrl = getGrafanaUrl(analyticUnit.grafanaUrl);
 
     if(analyticUnit.detectorType === AnalyticUnit.DetectorType.PATTERN) {
       const resultSeries: HSRResult = {
-        hsr: await queryByMetric(analyticUnit.metric, grafanaUrl, from, to, HASTIC_API_KEY)
+        hsr: await queryByMetric(analyticUnit.metric, grafanaUrl, from_timestamp, to_timestamp, HASTIC_API_KEY)
       };
       return resultSeries;
     }
@@ -658,7 +658,7 @@ export async function getHSR(
     //cache.data === null when learning started but not completed yet or first learning was failed
     if(inLearningState || cache === null || cache.data === null) {
       const resultSeries: HSRResult = {
-        hsr: await queryByMetric(analyticUnit.metric, grafanaUrl, from, to, HASTIC_API_KEY)
+        hsr: await queryByMetric(analyticUnit.metric, grafanaUrl, from_timestamp, to_timestamp, HASTIC_API_KEY)
       };
       return resultSeries;
       //TODO: send warning: can't show HSR before learning
@@ -666,7 +666,7 @@ export async function getHSR(
 
     cache = cache.data;
     let resultSeries: HSRResult = {
-      hsr: await queryByMetric(analyticUnit.metric, grafanaUrl, from, to, HASTIC_API_KEY)
+      hsr: await queryByMetric(analyticUnit.metric, grafanaUrl, from_timestamp, to_timestamp, HASTIC_API_KEY)
     };
 
     const analyticUnitType = analyticUnit.type;

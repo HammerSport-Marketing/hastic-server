@@ -22,24 +22,24 @@ export type SpanId = string;
 export class DetectionSpan {
   constructor(
     public analyticUnitId: AnalyticUnitId,
-    public from: number,
-    public to: number,
+    public from_timestamp: number,
+    public to_timestamp: number,
     public status: DetectionStatus,
     public id?: SpanId,
   ) {
     if(analyticUnitId === undefined) {
       throw new Error('AnalyticUnitId is undefined');
     }
-    if(from === undefined) {
+    if(from_timestamp === undefined) {
       throw new Error('from is undefined');
     }
-    if(isNaN(from)) {
+    if(isNaN(from_timestamp)) {
       throw new Error('from is NaN');
     }
-    if(to === undefined) {
+    if(to_timestamp === undefined) {
       throw new Error('to is undefined');
     }
-    if(isNaN(to)) {
+    if(isNaN(to_timestamp)) {
       throw new Error('to is NaN');
     }
     if(status === undefined) {
@@ -51,8 +51,8 @@ export class DetectionSpan {
     return {
       _id: this.id,
       analyticUnitId: this.analyticUnitId,
-      from: this.from,
-      to: this.to,
+      from_timestamp: this.from_timestamp,
+      to_timestamp: this.to_timestamp,
       status: this.status
     };
   }
@@ -63,7 +63,7 @@ export class DetectionSpan {
     }
     return new DetectionSpan(
       obj.analyticUnitId,
-      +obj.from, +obj.to,
+      +obj.from_timestamp, +obj.to_timestamp,
       obj.status,
       obj._id
     );
@@ -87,16 +87,16 @@ export async function findMany(id: AnalyticUnitId, query?: FindManyQuery): Promi
     dbQuery.status = query.status;
   }
   if(query.timeFromLTE !== undefined) {
-    dbQuery.from = { $lte: query.timeFromLTE };
+    dbQuery.from_timestamp = { $lte: query.timeFromLTE };
   }
   if(query.timeToGTE !== undefined) {
-    dbQuery.to = { $gte: query.timeToGTE };
+    dbQuery.to_timestamp = { $gte: query.timeToGTE };
   }
   if(query.timeFromGTE !== undefined) {
-    dbQuery.from = { $gte: query.timeFromGTE };
+    dbQuery.from_timestamp = { $gte: query.timeFromGTE };
   }
   if(query.timeToLTE !== undefined) {
-    dbQuery.to = { $lte: query.timeToLTE };
+    dbQuery.to_timestamp = { $lte: query.timeToLTE };
   }
 
   const spans = await db.findMany(dbQuery);
@@ -108,17 +108,17 @@ export async function findMany(id: AnalyticUnitId, query?: FindManyQuery): Promi
 
 export async function getIntersectedSpans(
   analyticUnitId: AnalyticUnitId,
-  from: number,
-  to: number,
+  from_timestamp: number,
+  to_timestamp: number,
   status?: DetectionStatus
 ): Promise<DetectionSpan[]> {
-  return findMany(analyticUnitId, { status, timeFromLTE: to, timeToGTE: from });
+  return findMany(analyticUnitId, { status, timeFromLTE: to_timestamp, timeToGTE: from_timestamp });
 }
 
 export async function insertSpan(span: DetectionSpan): Promise<SpanId> {
   let spanToInsert = span.toObject();
 
-  const intersections = await getIntersectedSpans(span.analyticUnitId, span.from, span.to);
+  const intersections = await getIntersectedSpans(span.analyticUnitId, span.from_timestamp, span.to_timestamp);
   if(_.isEmpty(intersections)) {
     return db.insertOne(spanToInsert);
   }
@@ -126,19 +126,19 @@ export async function insertSpan(span: DetectionSpan): Promise<SpanId> {
     intersectedSpan => intersectedSpan.status === span.status
   );
 
-  let from = span.from;
-  let to = span.to;
+  let from_timestamp = span.from_timestamp;
+  let to_timestamp = span.to_timestamp;
 
   if(!_.isEmpty(spansWithSameStatus)) {
-    let minFrom = _.minBy(spansWithSameStatus, s => s.from).from;
-    from = Math.min(from, minFrom);
+    let minFrom_timestamp = _.minBy(spansWithSameStatus, s => s.from_timestamp).from_timestamp;
+    from_timestamp = Math.min(from_timestamp, minFrom_timestamp);
 
-    let maxTo = _.maxBy(spansWithSameStatus, s => s.to).to;
-    to = Math.max(to, maxTo);
+    let maxTo_timestamp = _.maxBy(spansWithSameStatus, s => s.to_timestamp).to_timestamp;
+    to_timestamp = Math.max(to_timestamp, maxTo_timestamp);
   }
 
   const spansInside = intersections.filter(
-    intersectedSpan => intersectedSpan.from >= span.from && intersectedSpan.to <= span.to
+    intersectedSpan => intersectedSpan.from_timestamp >= span.from_timestamp && intersectedSpan.to_timestamp <= span.to_timestamp
   );
   const spanIdsToRemove = _.concat(
     spansWithSameStatus.map(s => s.id),
@@ -147,7 +147,7 @@ export async function insertSpan(span: DetectionSpan): Promise<SpanId> {
 
   await db.removeMany(spanIdsToRemove);
 
-  spanToInsert = new DetectionSpan(span.analyticUnitId, from, to, span.status).toObject();
+  spanToInsert = new DetectionSpan(span.analyticUnitId, from_timestamp, to_timestamp, span.status).toObject();
 
   return db.insertOne(spanToInsert);
 }
