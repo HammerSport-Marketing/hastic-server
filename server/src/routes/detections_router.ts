@@ -15,22 +15,22 @@ export async function getDetectionSpans(ctx: Router.IRouterContext) {
     throw new Error('analyticUnitId (id) is missing');
   }
 
-  let from: number = +ctx.request.query.from;
-  if(isNaN(from) || ctx.request.query.from === '') {
-    throw new Error(`from is missing or corrupted (got ${ctx.request.query.from})`);
+  let from_timestamp: number = +ctx.request.query.from_timestamp;
+  if(isNaN(from_timestamp) || ctx.request.query.from_timestamp === '') {
+    throw new Error(`from is missing or corrupted (got ${ctx.request.query.from_timestamp})`);
   }
-  let to: number = +ctx.request.query.to;
-  if(isNaN(to) || ctx.request.query.to === '') {
-    throw new Error(`to is missing or corrupted (got ${ctx.request.query.to})`);
+  let to_timestamp: number = +ctx.request.query.to_timestamp;
+  if(isNaN(to_timestamp) || ctx.request.query.to_timestamp === '') {
+    throw new Error(`to is missing or corrupted (got ${ctx.request.query.to_timestamp})`);
   }
 
-  if(from >= to) {
-    throw new Error(`'from' timestamp ${from} must be less than 'to' timestamp ${to}`);
+  if(from_timestamp >= to_timestamp) {
+    throw new Error(`'from_timestamp' timestamp ${from_timestamp} must be less than 'to_timestamp' timestamp ${to_timestamp}`);
   }
 
   let response: DetectionSpansResponse = { spans: [] };
   // TODO: invalidate
-  response.spans = await AnalyticsController.getDetectionSpans(id, from, to);
+  response.spans = await AnalyticsController.getDetectionSpans(id, from_timestamp, to_timestamp);
   ctx.response.body = response;
 }
 

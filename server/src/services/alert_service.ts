@@ -69,8 +69,8 @@ export class Alert {
       analyticUnitName: this.analyticUnit.name,
       analyticUnitId: this.analyticUnit.id,
       grafanaUrl,
-      from: segment.from,
-      to: segment.to,
+      from_timestamp: segment.from_timestamp,
+      to_timestamp: segment.to_timestamp,
       message: segment.message
     };
 
@@ -78,8 +78,8 @@ export class Alert {
   }
 
   protected makeMessage(meta: AnalyticMeta): string {
-    const localTimeFrom = toTimeZone(meta.from);
-    const localTimeTo = toTimeZone(meta.to);
+    const localTimeFrom = toTimeZone(meta.from_timestamp);
+    const localTimeTo = toTimeZone(meta.to_timestamp);
     return [
     `[${meta.analyticUnitType.toUpperCase()} ALERTING] ${meta.analyticUnitName}`,
     `URL: ${meta.grafanaUrl}`,
@@ -106,8 +106,8 @@ class PatternAlert extends Alert {
   }
 
   protected makeMessage(meta: AnalyticMeta): string {
-    const localTimeFrom = toTimeZone(meta.from);
-    const localTimeTo = toTimeZone(meta.to);
+    const localTimeFrom = toTimeZone(meta.from_timestamp);
+    const localTimeTo = toTimeZone(meta.to_timestamp);
     return [
       `[PATTERN DETECTED] ${meta.analyticUnitName}`,
       `URL: ${meta.grafanaUrl}`,
@@ -128,25 +128,25 @@ class ThresholdAlert extends Alert {
 
   public receive(segment: Segment) {
     if(this.lastOccurence === 0) {
-      this.lastOccurence = segment.from;
+      this.lastOccurence = segment.from_timestamp;
       if(this.enabled) {
         this.send(segment);
       }
     } else {
 
-      if(segment.from - this.lastOccurence > this.EXPIRE_PERIOD_MS) {
+      if(segment.from_timestamp - this.lastOccurence > this.EXPIRE_PERIOD_MS) {
         if(this.enabled) {
-          console.log(`time between threshold occurences ${segment.from - this.lastOccurence}ms, send alert`);
+          console.log(`time between threshold occurences ${segment.from_timestamp - this.lastOccurence}ms, send alert`);
           this.send(segment);
         }
       }
 
-      this.lastOccurence = segment.from;
+      this.lastOccurence = segment.from_timestamp;
     }
   }
 
   protected makeMessage(meta: AnalyticMeta): string {
-    const localTimeFrom = toTimeZone(meta.from);
+    const localTimeFrom = toTimeZone(meta.from_timestamp);
     let message = [
       `[THRESHOLD ALERTING] ${meta.analyticUnitName}`,
       `URL: ${meta.grafanaUrl}`,
@@ -202,8 +202,8 @@ export class AlertService {
     const infoAlert: MetaInfo = {
       params: optionalInfo,
       type,
-      from: now,
-      to: now
+      from_timestamp: now,
+      to_timestamp: now
     }
     sendNotification({ text, meta: infoAlert });
   }

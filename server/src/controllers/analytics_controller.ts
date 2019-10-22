@@ -603,7 +603,7 @@ async function getPayloadData(
 
   const cache = await AnalyticUnitCache.findById(analyticUnit.id);
   const intersection = cache.getIntersection();
-  if(range.to - range.from_timestamp < intersection) {
+  if(range.to_timestamp - range.from_timestamp < intersection) {
     range.from_timestamp = range.to_timestamp - intersection;
   }
 

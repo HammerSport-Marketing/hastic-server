@@ -45,13 +45,13 @@ export class DataPuller {
     }
   }
 
-  private async pullData(unit: AnalyticUnit.AnalyticUnit, from: number, to: number): Promise<MetricDataChunk> {
+  private async pullData(unit: AnalyticUnit.AnalyticUnit, from_timestamp: number, to_timestamp: number): Promise<MetricDataChunk> {
     if(unit === undefined) {
       throw Error(`data puller: can't pull undefined unit`);
     }
 
     const grafanaUrl = getGrafanaUrl(unit.grafanaUrl);
-    let data = queryByMetric(unit.metric, grafanaUrl, from, to, HASTIC_API_KEY);
+    let data = queryByMetric(unit.metric, grafanaUrl, from_timestamp, to_timestamp, HASTIC_API_KEY);
     return data;
     
   }
@@ -66,8 +66,8 @@ export class DataPuller {
     }
     try {
       this.analyticsService.sendTask(task);
-      let fromTime = new Date(data.from).toLocaleTimeString();
-      let toTime = new Date(data.to).toLocaleTimeString();
+      let fromTime = new Date(data.from_timestamp).toLocaleTimeString();
+      let toTime = new Date(data.to_timestamp).toLocaleTimeString();
       console.log(`pushed ${data.data.length} points to unit: ${unit.id} ${fromTime}-${toTime}`);
     } catch(e) {
       console.log(`data puller got error while push data ${e.message}`);
@@ -120,8 +120,8 @@ export class DataPuller {
       const detector = analyticUnit.detectorType;
       let payload = {
         data: payloadValues,
-        from: this._unitTimes[analyticUnit.id],
-        to: now,
+        from_timestamp: this._unitTimes[analyticUnit.id],
+        to_timestamp: now,
         analyticUnitType: analyticUnit.type,
         detector,
         cache

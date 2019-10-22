@@ -3,19 +3,19 @@ import { cutSegmentWithSegments, IntegerSegment, IntegerSegmentsSet } from '../.
 import 'jest';
 
 
-function IS(from: number, to: number) {
-  return new IntegerSegment(from, to);
+function IS(from_timestamp: number, to_timestamp: number) {
+  return new IntegerSegment(from_timestamp, to_timestamp);
 }
 
 function ISS(xs: [number, number][]) {
   return new IntegerSegmentsSet(xs.map(x => IS(x[0], x[1])));
 }
 
-function cutSpan(from: number, to: number, cuts: [number, number][]): [number, number][] {
+function cutSpan(from_timestamp: number, to_timestamp: number, cuts: [number, number][]): [number, number][] {
   return cutSegmentWithSegments(
-    new IntegerSegment(from, to),
-    cuts.map(([from, to]) => new IntegerSegment(from, to))
-  ).map(({ from, to }) => [from, to] as [number, number]);
+    new IntegerSegment(from_timestamp, to_timestamp),
+    cuts.map(([from_timestamp, to_timestamp]) => new IntegerSegment(from_timestamp, to_timestamp))
+  ).map(({ from_timestamp, to_timestamp }) => [from_timestamp, to_timestamp] as [number, number]);
 }
 
 describe('IntegerSegment', function() {

@@ -4,7 +4,7 @@ import * as Detection from '../../src/models/detection_model';
 
 import * as _ from 'lodash';
 
-export type DetectionSpanOptions = { from: number, to: number, status: Detection.DetectionStatus };
+export type DetectionSpanOptions = { from_timestamp: number, to_timestamp: number, status: Detection.DetectionStatus };
 
 export function buildSpans(options: DetectionSpanOptions[]): Detection.DetectionSpan[] {
   return options.map(option => {
@@ -19,7 +19,7 @@ export async function insertSpans(options: DetectionSpanOptions[]): Promise<void
 }
 
 export function convertSpansToOptions(spans: Detection.DetectionSpan[]): DetectionSpanOptions[] {
-  const spansOptions = spans.map(span => ({ from: span.from_timestamp, to: span.to, status: span.status }));
+  const spansOptions = spans.map(span => ({ from_timestamp: span.from_timestamp, to_timestamp: span.to_timestamp, status: span.status }));
   return _.sortBy(spansOptions, spanOptions => spanOptions.from_timestamp);
 }
 

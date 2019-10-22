@@ -23,15 +23,15 @@ export declare type AnalyticMeta = {
   analyticUnitName: string,
   analyticUnitId: AnalyticUnit.AnalyticUnitId,
   grafanaUrl: string,
-  from: number,
-  to: number
+  from_timestamp: number,
+  to_timestamp: number
   message?: any
 }
 
 export declare type MetaInfo = {
   type: WebhookType,
-  from: number,
-  to: number,
+  from_timestamp: number,
+  to_timestamp: number,
   params?: any
 }
 
