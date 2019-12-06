@@ -9,6 +9,7 @@ from analytic_types import AnalyticUnitId, ModelCache
 from analytic_types.detector_typing import DetectionResult, ProcessingResult
 from analytic_types.data_bucket import DataBucket
 from analytic_types.segment import Segment, AnomalyDetectorSegment
+from analytic_types.cache import AnomalyCache
 from detectors import Detector, ProcessingDetector
 import utils
 
@@ -29,6 +30,7 @@ class AnomalyDetector(ProcessingDetector):
         self.bucket = DataBucket()
 
     def train(self, dataframe: pd.DataFrame, payload: Union[list, dict], cache: Optional[ModelCache]) -> ModelCache:
+        print('payload', payload)
         segments = payload.get('segments')
         enable_bounds = Bound(payload.get('enableBounds') or 'ALL')
         prepared_segments = []
@@ -73,7 +75,9 @@ class AnomalyDetector(ProcessingDetector):
         if cache == None:
             raise f'Analytic unit {self.analytic_unit_id} got empty cache'
         data = dataframe['value']
-
+        print('cache detect', cache)
+        cache_object = AnomalyCache.from_json(cache)
+        print('cache object detect', cache_object.alpha, cache_object.confidence)
         # TODO: use class for cache to avoid using string literals
         alpha = self.get_value_from_cache(cache, 'alpha', required = True)
         confidence = self.get_value_from_cache(cache, 'confidence', required = True)
@@ -166,7 +170,7 @@ class AnomalyDetector(ProcessingDetector):
         alpha = self.get_value_from_cache(cache, 'alpha', required = True)
         confidence = self.get_value_from_cache(cache, 'confidence', required = True)
         enable_bounds = Bound(self.get_value_from_cache(cache, 'enableBounds') or 'ALL')
-
+        print('cache process_data', cache)
         # TODO: exponential_smoothing should return dataframe with related timestamps
         smoothed_data = utils.exponential_smoothing(dataframe['value'], alpha)
 
