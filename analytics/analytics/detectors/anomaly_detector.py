@@ -6,7 +6,7 @@ import math
 from typing import Optional, Union, List, Tuple, Generator
 
 from analytic_types import AnalyticUnitId, ModelCache
-from analytic_types.detector_typing import DetectionResult, ProcessingResult
+from analytic_types.detector_typing import DetectionResult, ProcessingResult, Bound
 from analytic_types.data_bucket import DataBucket
 from analytic_types.segment import Segment, AnomalyDetectorSegment
 from analytic_types.cache import AnomalyCache
@@ -18,10 +18,6 @@ MIN_DEPENDENCY_FACTOR = 0.1
 BASIC_ALPHA = 0.5
 logger = logging.getLogger('ANOMALY_DETECTOR')
 
-class Bound(Enum):
-    ALL = 'ALL'
-    UPPER = 'UPPER'
-    LOWER = 'LOWER'
 
 class AnomalyDetector(ProcessingDetector):
 
@@ -31,23 +27,12 @@ class AnomalyDetector(ProcessingDetector):
 
     def train(self, dataframe: pd.DataFrame, payload: Union[list, dict], cache: Optional[ModelCache]) -> ModelCache:
         print('payload', payload)
-        segments = payload.get('segments')
-        enable_bounds = Bound(payload.get('enableBounds') or 'ALL')
-        prepared_segments = []
-        time_step = utils.find_interval(dataframe)
+        cache_object = AnomalyCache.from_json(payload)
+        cache_object.time_step = utils.find_interval(dataframe)
 
-        new_cache = {
-            'confidence': payload['confidence'],
-            'alpha': payload['alpha'],
-            'timeStep': time_step,
-            'enableBounds': enable_bounds.value
-        }
-
-        if segments is not None:
-            seasonality = payload.get('seasonality')
-            assert seasonality is not None and seasonality > 0, \
-                f'{self.analytic_unit_id} got invalid seasonality {seasonality}'
-            parsed_segments = map(Segment.from_json, segments)
+        if cache_object.segments is not None:
+            seasonality = cache_object.seasonality
+            parsed_segments = map(Segment.from_json, cache_object.segments)
 
             for segment in parsed_segments:
                 segment_len = (int(segment.to_timestamp) - int(segment.from_timestamp))
@@ -57,17 +42,12 @@ class AnomalyDetector(ProcessingDetector):
                 from_index = utils.timestamp_to_index(dataframe, pd.to_datetime(segment.from_timestamp, unit='ms'))
                 to_index = utils.timestamp_to_index(dataframe, pd.to_datetime(segment.to_timestamp, unit='ms'))
                 segment_data = dataframe[from_index : to_index]
-                prepared_segments.append({
-                    'from': segment.from_timestamp,
-                    'to': segment.to_timestamp,
-                    'data': segment_data.value.tolist()
-                })
-
-            new_cache['seasonality'] = seasonality
-            new_cache['segments'] = prepared_segments
-
+                cache_object.append_segment(
+                    AnomalyDetectorSegment(segment.from_timestamp, segment.to_timestamp, segment_data.value.tolist())
+                )
+        print(cache_object.to_json())
         return {
-            'cache': new_cache
+            'cache': cache_object.to_json()
         }
 
     # TODO: ModelCache -> DetectorState
@@ -75,33 +55,19 @@ class AnomalyDetector(ProcessingDetector):
         if cache == None:
             raise f'Analytic unit {self.analytic_unit_id} got empty cache'
         data = dataframe['value']
-        print('cache detect', cache)
         cache_object = AnomalyCache.from_json(cache)
-        print('cache object detect', cache_object.alpha, cache_object.confidence)
-        # TODO: use class for cache to avoid using string literals
-        alpha = self.get_value_from_cache(cache, 'alpha', required = True)
-        confidence = self.get_value_from_cache(cache, 'confidence', required = True)
-        segments = self.get_value_from_cache(cache, 'segments')
-        enable_bounds = Bound(self.get_value_from_cache(cache, 'enableBounds') or 'ALL')
 
-        smoothed_data = utils.exponential_smoothing(data, alpha)
+        smoothed_data = utils.exponential_smoothing(data, cache_object.alpha)
 
-        lower_bound = smoothed_data - confidence if enable_bounds == Bound.LOWER or enable_bounds == Bound.ALL else pd.Series([])
-        upper_bound = smoothed_data + confidence if enable_bounds == Bound.UPPER or enable_bounds == Bound.ALL else pd.Series([])
+        lower_bound = smoothed_data - cache_object.confidence if cache_object.enable_bounds == Bound.LOWER or cache_object.enable_bounds == Bound.ALL else pd.Series([])
+        upper_bound = smoothed_data + cache_object.confidence if cache_object.enable_bounds == Bound.UPPER or cache_object.enable_bounds == Bound.ALL else pd.Series([])
 
-        if segments is not None:
-            parsed_segments = map(AnomalyDetectorSegment.from_json, segments)
-
-            time_step = self.get_value_from_cache(cache, 'timeStep', required = True)
-            seasonality = self.get_value_from_cache(cache, 'seasonality', required = True)
-            assert seasonality > 0, \
-                f'{self.analytic_unit_id} got invalid seasonality {seasonality}'
-
+        if cache_object.segments is not None:
             data_start_time = utils.convert_pd_timestamp_to_ms(dataframe['timestamp'][0])
 
-            for segment in parsed_segments:
-                seasonality_index = seasonality // time_step
-                seasonality_offset = self.get_seasonality_offset(segment.from_timestamp, seasonality, data_start_time, time_step)
+            for segment in cache_object.segments:
+                seasonality_index = cache_object.seasonality // cache_object.time_step
+                seasonality_offset = self.get_seasonality_offset(segment.from_timestamp, cache_object.seasonality, data_start_time, cache_object.time_step)
                 segment_data = pd.Series(segment.data)
 
                 if len(lower_bound) > 0:
@@ -109,12 +75,12 @@ class AnomalyDetector(ProcessingDetector):
                 if len(upper_bound) > 0:
                     upper_bound = self.add_season_to_data(upper_bound, segment_data, seasonality_offset, seasonality_index, Bound.UPPER)
 
-        detected_segments = list(self.detections_generator(dataframe, upper_bound, lower_bound, enable_bounds))
+        detected_segments = list(self.detections_generator(dataframe, upper_bound, lower_bound, cache_object.enable_bounds))
 
         last_dataframe_time = dataframe.iloc[-1]['timestamp']
         last_detection_time = utils.convert_pd_timestamp_to_ms(last_dataframe_time)
 
-        return DetectionResult(cache, detected_segments, last_detection_time)
+        return DetectionResult(cache_object.to_json(), detected_segments, last_detection_time)
 
     def consume_data(self, data: pd.DataFrame, cache: Optional[ModelCache]) -> Optional[DetectionResult]:
         if cache is None:
@@ -166,31 +132,20 @@ class AnomalyDetector(ProcessingDetector):
 
     # TODO: remove duplication with detect()
     def process_data(self, dataframe: pd.DataFrame, cache: ModelCache) -> ProcessingResult:
-        segments = self.get_value_from_cache(cache, 'segments')
-        alpha = self.get_value_from_cache(cache, 'alpha', required = True)
-        confidence = self.get_value_from_cache(cache, 'confidence', required = True)
-        enable_bounds = Bound(self.get_value_from_cache(cache, 'enableBounds') or 'ALL')
-        print('cache process_data', cache)
+        cache_object = AnomalyCache.from_json(cache)
         # TODO: exponential_smoothing should return dataframe with related timestamps
-        smoothed_data = utils.exponential_smoothing(dataframe['value'], alpha)
+        smoothed_data = utils.exponential_smoothing(dataframe['value'], cache_object.alpha)
 
-        lower_bound = smoothed_data - confidence
-        upper_bound = smoothed_data + confidence
+        lower_bound = smoothed_data - cache_object.confidence
+        upper_bound = smoothed_data + cache_object.confidence
 
-        if segments is not None:
-            segments: List[AnomalyDetectorSegment] = map(AnomalyDetectorSegment.from_json, segments)
-            seasonality = self.get_value_from_cache(cache, 'seasonality', required = True)
-            assert seasonality > 0, \
-                f'{self.analytic_unit_id} got invalid seasonality {seasonality}'
-
+        if cache_object.segments is not None:
             data_start_time = utils.convert_pd_timestamp_to_ms(dataframe['timestamp'][0])
 
-            time_step = self.get_value_from_cache(cache, 'timeStep', required = True)
-
-            for segment in segments:
-                seasonality_index = seasonality // time_step
+            for segment in cache_object.segments:
+                seasonality_index = cache_object.seasonality // cache_object.time_step
                 # TODO: move it to utils and add tests
-                seasonality_offset = self.get_seasonality_offset(segment.from_timestamp, seasonality, data_start_time, time_step)
+                seasonality_offset = self.get_seasonality_offset(segment.from_timestamp, cache_object.seasonality, data_start_time, cache_object.time_step)
                 segment_data = pd.Series(segment.data)
 
                 lower_bound = self.add_season_to_data(lower_bound, segment_data, seasonality_offset, seasonality_index, Bound.LOWER)
@@ -202,11 +157,11 @@ class AnomalyDetector(ProcessingDetector):
         lower_bound_timeseries = list(zip(timestamps, lower_bound.values.tolist()))
         upper_bound_timeseries = list(zip(timestamps, upper_bound.values.tolist()))
 
-        if enable_bounds == Bound.ALL:
+        if cache_object.enable_bounds == Bound.ALL:
             return ProcessingResult(lower_bound_timeseries, upper_bound_timeseries)
-        elif enable_bounds == Bound.UPPER:
+        elif cache_object.enable_bounds == Bound.UPPER:
             return ProcessingResult(upper_bound = upper_bound_timeseries)
-        elif enable_bounds == Bound.LOWER:
+        elif cache_object.enable_bounds == Bound.LOWER:
             return ProcessingResult(lower_bound = lower_bound_timeseries)
 
     def add_season_to_data(self, data: pd.Series, segment: pd.Series, offset: int, seasonality: int, bound_type: Bound) -> pd.Series:
