@@ -26,14 +26,13 @@ class AnomalyDetector(ProcessingDetector):
         self.bucket = DataBucket()
 
     def train(self, dataframe: pd.DataFrame, payload: Union[list, dict], cache: Optional[ModelCache]) -> ModelCache:
-        print('payload', payload)
         cache_object = AnomalyCache.from_json(payload)
         cache_object.time_step = utils.find_interval(dataframe)
 
         if cache_object.segments is not None:
             seasonality = cache_object.seasonality
             parsed_segments = map(Segment.from_json, cache_object.segments)
-
+            anomaly_segments = []
             for segment in parsed_segments:
                 segment_len = (int(segment.to_timestamp) - int(segment.from_timestamp))
                 assert segment_len <= seasonality, \
@@ -42,9 +41,15 @@ class AnomalyDetector(ProcessingDetector):
                 from_index = utils.timestamp_to_index(dataframe, pd.to_datetime(segment.from_timestamp, unit='ms'))
                 to_index = utils.timestamp_to_index(dataframe, pd.to_datetime(segment.to_timestamp, unit='ms'))
                 segment_data = dataframe[from_index : to_index]
-                new_segments = AnomalyDetectorSegment(segment.from_timestamp, segment.to_timestamp, segment_data.value.tolist())
-            print(new_segments[0].to_json())
-        print('cache to_json', cache_object.to_json())
+                anomaly_segments.append(
+                    AnomalyDetectorSegment(
+                        segment.from_timestamp,
+                        segment.to_timestamp,
+                        segment_data.value.tolist()
+                    )
+                )
+            cache_object.set_segments(anomaly_segments)
+
         return {
             'cache': cache_object.to_json()
         }

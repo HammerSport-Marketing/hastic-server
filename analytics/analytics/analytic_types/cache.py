@@ -25,17 +25,21 @@ class AnomalyCache:
         self.segments = segments
         self.time_step = time_step
 
-    def append_segment(self, segment: AnomalyDetectorSegment):
-        if self.segments == None:
-            self.segment = [segment.to_json()]
-        else:
-            self.segments.append(segment.to_json())
+    def set_segments(self, segments: List[AnomalyDetectorSegment]):
+        if len(segments) > 0:
+            self.segments = list(map(lambda s: s.to_json(), segments))
 
     def get_segments(self) -> List[AnomalyDetectorSegment]:
         if self.segments != None:
             return map(AnomalyDetectorSegment.from_json, self.segments)
         else:
             return None
+
+    def append_segment(self, segment: AnomalyDetectorSegment):
+        if self.segments == None:
+            self.segment = [segment.to_json()]
+        else:
+            self.segments.append(segment.to_json())
 
     def get_enable_bounds(self) -> Bound:
         return Bound(self.enable_bounds)
