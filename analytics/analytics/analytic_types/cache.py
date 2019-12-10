@@ -32,8 +32,10 @@ class AnomalyCache:
             self.segments.append(segment.to_json())
 
     def get_segments(self) -> List[AnomalyDetectorSegment]:
-        if segments != None:
+        if self.segments != None:
             return map(AnomalyDetectorSegment.from_json, self.segments)
+        else:
+            return None
 
     def get_enable_bounds(self) -> Bound:
         return Bound(self.enable_bounds)
